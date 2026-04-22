@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STROMA — Audio Analysis Instrument</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg:        #080c10;
+    --panel:     #0d1318;
+    --border:    #1a2530;
+    --accent1:   #00e5ff;   /* cyan — pitch / frequency */
+    --accent2:   #76ff03;   /* lime  — onset / energy  */
+    --accent3:   #ff6d00;   /* amber — uncertainty     */
+    --accent4:   #e040fb;   /* purple — copular metric */
+    --dim:       #334455;
+    --text:      #b0c4d4;
+    --textbright:#e8f4ff;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
+    background: #060a0d;
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--accent1);
+    text-shadow: 0 0 18px #00e5ff88;
+  }
+  .logo span { color: var(--accent4); }
+  .hud-row {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+  .hud-pill {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .hud-pill.live { border-color: var(--accent2); color: var(--accent2); }
+  .hud-pill.idle { border-color: var(--dim); color: var(--dim); }
+
+  #btn-mic {
+    background: none;
+    border: 1px solid var(--accent1);
+    color: var(--accent1);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 5px 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  #btn-mic:hover { background: #00e5ff18; box-shadow: 0 0 12px #00e5ff44; }
+  #btn-mic.active { background: #00e5ff22; box-shadow: 0 0 16px #00e5ff66; color: var(--textbright); }
+
+  /* ── MAIN GRID ── */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 260px;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    flex: 1;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--panel);
+    position: relative;
+    overflow: hidden;
+  }
+  .panel-label {
+    position: absolute;
+    top: 7px; left: 10px;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    z-index: 10;
+    pointer-events: none;
+  }
+  .panel-label span { color: var(--accent1); }
+
+  /* right column spans both rows */
+  .panel-right {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  /* ── CANVASES ── */
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ── RIGHT SIDEBAR ── */
+  .sidebar-section {
+    background: var(--panel);
+    flex: 1;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .sidebar-title {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 5px;
+    flex-shrink: 0;
+  }
+  .sidebar-title span { color: var(--accent4); }
+
+  /* metric rows */
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  .metric-label { color: var(--dim); font-size: 10px; letter-spacing: 1px; flex-shrink:0; }
+  .metric-value { color: var(--textbright); font-size: 12px; font-weight: 600; }
+  .metric-bar-wrap {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .metric-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.1s;
+  }
+
+  /* note display */
+  .note-display {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .note-big {
+    font-family: 'Space Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent1);
+    text-shadow: 0 0 20px #00e5ffaa;
+    line-height: 1;
+    min-width: 70px;
+  }
+  .note-freq {
+    font-size: 11px;
+    color: var(--accent2);
+  }
+  .note-cents {
+    font-size: 10px;
+    color: var(--accent3);
+    margin-top: 2px;
+  }
+
+  /* confidence gauge */
+  .gauge-wrap { position: relative; width: 100%; margin-top: 2px; }
+  .gauge-track {
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .gauge-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.15s, background 0.15s;
+    background: var(--accent4);
+    box-shadow: 0 0 8px var(--accent4);
+  }
+  .gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px;
+    color: var(--dim);
+    margin-top: 3px;
+  }
+
+  /* copular metric canvas */
+  #canvas-copula {
+    width: 100%;
+    flex: 1;
+    border-radius: 2px;
+  }
+
+  /* history log */
+  .history-log {
+    font-size: 9px;
+    color: var(--dim);
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .history-log::-webkit-scrollbar { display: none; }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid #0f1820; line-height: 1.6; }
+  .log-entry .le-note { color: var(--accent1); }
+  .log-entry .le-conf { color: var(--accent4); }
+  .log-entry .le-time { color: #223344; }
+
+  /* ── STATUS BAR ── */
+  footer {
+    display: flex;
+    gap: 20px;
+    padding: 4px 14px;
+    border-top: 1px solid var(--border);
+    background: #060a0d;
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+  footer span { color: var(--accent1); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">STR<span>O</span>MA</div>
+  <div class="hud-row">
+    <div class="hud-pill idle" id="pill-status">IDLE</div>
+    <div class="hud-pill" style="color:#334455;border-color:#1a2530" id="pill-sr">— Hz</div>
+    <div class="hud-pill" style="color:#334455;border-color:#1a2530" id="pill-fft">FFT —</div>
+    <button id="btn-mic">▶ MIC</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="grid">
+
+  <!-- [0,0] SPECTROGRAM -->
+  <div class="panel" style="grid-column:1;grid-row:1;">
+    <div class="panel-label">SPECTROGRAM <span>· CQT</span></div>
+    <canvas id="canvas-spec"></canvas>
+  </div>
+
+  <!-- [0,1] WAVEFORM + ONSET -->
+  <div class="panel" style="grid-column:2;grid-row:1;">
+    <div class="panel-label">WAVEFORM <span>· ONSET</span></div>
+    <canvas id="canvas-wave"></canvas>
+  </div>
+
+  <!-- [1,0] PIANO ROLL + PITCH TRACE -->
+  <div class="panel" style="grid-column:1;grid-row:2;">
+    <div class="panel-label">PIANO ROLL <span>· PITCH TRACE</span></div>
+    <canvas id="canvas-roll"></canvas>
+  </div>
+
+  <!-- [1,1] UNCERTAINTY FIELD -->
+  <div class="panel" style="grid-column:2;grid-row:2;">
+    <div class="panel-label">SPECTRAL CENTROID <span>· FLUX · ENTROPY</span></div>
+    <canvas id="canvas-metrics"></canvas>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div class="panel-right">
+
+    <!-- NOTE READOUT -->
+    <div class="sidebar-section" style="flex:0 0 auto;">
+      <div class="sidebar-title">PITCH ESTIMATE <span>· pYIN</span></div>
+      <div class="note-display">
+        <div class="note-big" id="note-name">—</div>
+        <div>
+          <div class="note-freq" id="note-freq">— Hz</div>
+          <div class="note-cents" id="note-cents">±— ¢</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="gauge-track">
+          <div class="gauge-fill" id="conf-bar" style="width:0%"></div>
+        </div>
+        <div class="gauge-labels"><span>confidence</span><span id="conf-val">0.00</span></div>
+      </div>
+    </div>
+
+    <!-- METRICS -->
+    <div class="sidebar-section" style="flex:0 0 auto;">
+      <div class="sidebar-title">SPECTRAL METRICS</div>
+      <div class="metric-row">
+        <div class="metric-label">CENTROID</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" id="bar-centroid" style="width:0%;background:var(--accent1)"></div></div>
+        <div class="metric-value" id="val-centroid">—</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label">FLATNESS</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" id="bar-flatness" style="width:0%;background:var(--accent2)"></div></div>
+        <div class="metric-value" id="val-flatness">—</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label">FLUX</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" id="bar-flux" style="width:0%;background:var(--accent3)"></div></div>
+        <div class="metric-value" id="val-flux">—</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label">ENTROPY</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" id="bar-entropy" style="width:0%;background:var(--accent4)"></div></div>
+        <div class="metric-value" id="val-entropy">—</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label">ZCR</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" id="bar-zcr" style="width:0%;background:#ffeb3b"></div></div>
+        <div class="metric-value" id="val-zcr">—</div>
+      </div>
+    </div>
+
+    <!-- COPULAR METRIC -->
+    <div class="sidebar-section" style="flex:1; min-height:0;">
+      <div class="sidebar-title">COPULAR METRIC <span>· Σ(f,c,H)</span></div>
+      <canvas id="canvas-copula"></canvas>
+    </div>
+
+    <!-- NOTE LOG -->
+    <div class="sidebar-section" style="flex:0 0 90px;">
+      <div class="sidebar-title">EVENT LOG</div>
+      <div class="history-log" id="note-log"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div>BUFFER <span id="ft-buf">—</span></div>
+  <div>RMS <span id="ft-rms">—</span></div>
+  <div>FRAME <span id="ft-frame">0</span></div>
+  <div>LATENCY <span id="ft-lat">—</span></div>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════
+//  STROMA — Audio Analysis Instrument
+//  Nicolás · 2026
+//  Metrics: pitch (pYIN-inspired ACF), spectral centroid,
+//  spectral flatness, spectral flux, Shannon entropy, ZCR,
+//  copular composite Σ(pitch_conf, 1-flatness, 1-entropy_norm)
+// ════════════════════════════════════════════════════
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FFT_SIZE   = 4096;
+const SR_ASSUMED = 44100;
+
+let audioCtx, analyser, micStream;
+let running = false;
+let frameCount = 0;
+let prevMag = null;
+
+// --- Canvas references ---
+const cSpec    = document.getElementById('canvas-spec');
+const cWave    = document.getElementById('canvas-wave');
+const cRoll    = document.getElementById('canvas-roll');
+const cMetrics = document.getElementById('canvas-metrics');
+const cCopula  = document.getElementById('canvas-copula');
+
+const ctxSpec    = cSpec.getContext('2d');
+const ctxWave    = cWave.getContext('2d');
+const ctxRoll    = cRoll.getContext('2d');
+const ctxMetrics = cMetrics.getContext('2d');
+const ctxCopula  = cCopula.getContext('2d');
+
+// --- State buffers ---
+const HISTORY = 300;
+const pitchHist    = new Float32Array(HISTORY);
+const confHist     = new Float32Array(HISTORY);
+const centroidHist = new Float32Array(HISTORY);
+const fluxHist     = new Float32Array(HISTORY);
+const entropyHist  = new Float32Array(HISTORY);
+const copularHist  = new Float32Array(HISTORY);
+const onsetHist    = new Uint8Array(HISTORY);
+
+let specScrollX = 0;
+
+// --- Note log ---
+const noteLog = document.getElementById('note-log');
+let lastLoggedNote = '';
+let lastLogTime = 0;
+
+function logNote(note, freq, conf) {
+  const now = performance.now();
+  if (note === lastLoggedNote && now - lastLogTime < 800) return;
+  lastLoggedNote = note;
+  lastLogTime = now;
+  const t = new Date().toISOString().substr(11,8);
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="le-time">${t}</span>  <span class="le-note">${note}</span>  ${freq.toFixed(1)}Hz  <span class="le-conf">conf:${conf.toFixed(2)}</span>`;
+  noteLog.prepend(entry);
+  if (noteLog.children.length > 40) noteLog.removeChild(noteLog.lastChild);
+}
+
+// ── PITCH DETECTION (ACF + parabolic interpolation) ──
+function detectPitch(timeDomain, sampleRate) {
+  const N = timeDomain.length;
+  const minPeriod = Math.floor(sampleRate / 1200);
+  const maxPeriod = Math.floor(sampleRate / 50);
+
+  // Normalize
+  let rms = 0;
+  for (let i = 0; i < N; i++) rms += timeDomain[i] * timeDomain[i];
+  rms = Math.sqrt(rms / N);
+  if (rms < 0.008) return { freq: 0, confidence: 0 };
+
+  // Autocorrelation (difference function — NSDF inspired)
+  let bestLag = -1, bestVal = -Infinity;
+  for (let lag = minPeriod; lag < maxPeriod; lag++) {
+    let sum = 0;
+    for (let i = 0; i < N - lag; i++) sum += timeDomain[i] * timeDomain[i + lag];
+    if (sum > bestVal) { bestVal = sum; bestLag = lag; }
+  }
+  if (bestLag < 0) return { freq: 0, confidence: 0 };
+
+  // Parabolic interpolation for sub-sample precision
+  const y0 = bestLag > 0 ? acfAt(timeDomain, N, bestLag-1) : bestVal;
+  const y1 = bestVal;
+  const y2 = acfAt(timeDomain, N, bestLag+1);
+  const denom = 2*(2*y1 - y0 - y2);
+  const refinedLag = denom !== 0 ? bestLag + (y0 - y2)/denom : bestLag;
+  const freq = sampleRate / refinedLag;
+
+  // Confidence: ratio of peak to zero-lag
+  const r0 = acfAt(timeDomain, N, 0);
+  const confidence = r0 > 0 ? Math.min(1, Math.max(0, bestVal / r0)) : 0;
+
+  return { freq, confidence };
+}
+function acfAt(buf, N, lag) {
+  let s = 0;
+  for (let i = 0; i < N - lag; i++) s += buf[i] * buf[i+lag];
+  return s;
+}
+
+// ── SPECTRAL FEATURES ──
+function spectralCentroid(mag, sr, fftSize) {
+  let num = 0, den = 0;
+  for (let k = 0; k < mag.length; k++) {
+    const f = k * sr / fftSize;
+    const m = mag[k] * mag[k];
+    num += f * m; den += m;
+  }
+  return den > 0 ? num / den : 0;
+}
+
+function spectralFlatness(mag) {
+  const N = mag.length;
+  let logSum = 0, linSum = 0;
+  for (let k = 0; k < N; k++) {
+    const m = Math.max(mag[k], 1e-10);
+    logSum += Math.log(m);
+    linSum += m;
+  }
+  return Math.exp(logSum / N) / (linSum / N + 1e-10);
+}
+
+function spectralFlux(mag, prev) {
+  if (!prev) return 0;
+  let flux = 0;
+  for (let k = 0; k < mag.length; k++) {
+    const d = mag[k] - prev[k];
+    if (d > 0) flux += d;
+  }
+  return flux;
+}
+
+function shannonEntropy(mag) {
+  let total = 0;
+  for (let k = 0; k < mag.length; k++) total += mag[k];
+  if (total < 1e-10) return 0;
+  let H = 0;
+  for (let k = 0; k < mag.length; k++) {
+    const p = mag[k] / total;
+    if (p > 1e-10) H -= p * Math.log2(p);
+  }
+  return H / Math.log2(mag.length); // normalized 0-1
+}
+
+function zeroCrossingRate(timeDomain) {
+  let zc = 0;
+  for (let i = 1; i < timeDomain.length; i++) {
+    if ((timeDomain[i] >= 0) !== (timeDomain[i-1] >= 0)) zc++;
+  }
+  return zc / timeDomain.length;
+}
+
+// ── COPULAR COMPOSITE METRIC ──
+// Σ = w1*conf + w2*(1-flatness) + w3*(1-entropy) + w4*onsetStrength
+// Captures: pitch certainty × harmonic richness × spectral focus × onset energy
+function copularMetric(conf, flatness, entropy, fluxNorm) {
+  const w1 = 0.40, w2 = 0.20, w3 = 0.25, w4 = 0.15;
+  return w1*conf + w2*(1-flatness) + w3*(1-entropy) + w4*fluxNorm;
+}
+
+// ── FREQ → NOTE ──
+function freqToNote(freq) {
+  if (freq <= 0) return { name: '—', octave: 0, cents: 0, midi: -1 };
+  const midi = 69 + 12 * Math.log2(freq / 440);
+  const midiR = Math.round(midi);
+  const cents = Math.round((midi - midiR) * 100);
+  const name = NOTE_NAMES[((midiR % 12) + 12) % 12];
+  const octave = Math.floor(midiR / 12) - 1;
+  return { name: name + octave, octave, cents, midi: midiR };
+}
+
+// ── MIDI ROW → Y ──
+function midiToY(midi, canvasH) {
+  // Show range C2(36) to C7(84)
+  const lo = 36, hi = 84;
+  return canvasH - ((midi - lo) / (hi - lo)) * canvasH;
+}
+
+// ── RESIZE ──
+function resize() {
+  [cSpec, cWave, cRoll, cMetrics].forEach(c => {
+    const r = c.parentElement.getBoundingClientRect();
+    c.width  = r.width;
+    c.height = r.height;
+  });
+  const rc = cCopula.parentElement.getBoundingClientRect();
+  cCopula.width  = rc.width - 24;
+  cCopula.height = cCopula.parentElement.offsetHeight - 80;
+}
+window.addEventListener('resize', resize);
+setTimeout(resize, 50);
+
+// ── MAIN LOOP ──
+function loop() {
+  if (!running) return;
+  requestAnimationFrame(loop);
+
+  const t0 = performance.now();
+  frameCount++;
+
+  const sr = audioCtx.sampleRate;
+  const freqData  = new Uint8Array(analyser.frequencyBinCount);
+  const timeData  = new Float32Array(analyser.fftSize);
+  analyser.getByteFrequencyData(freqData);
+  analyser.getFloatTimeDomainData(timeData);
+
+  // Magnitude (normalized 0-1)
+  const mag = new Float32Array(freqData.length);
+  for (let k = 0; k < freqData.length; k++) mag[k] = freqData[k] / 255;
+
+  // RMS
+  let rms = 0;
+  for (let i = 0; i < timeData.length; i++) rms += timeData[i]*timeData[i];
+  rms = Math.sqrt(rms / timeData.length);
+
+  // --- Compute features ---
+  const pitch     = detectPitch(timeData, sr);
+  const centroid  = spectralCentroid(mag, sr, analyser.fftSize);
+  const flatness  = spectralFlatness(mag);
+  const flux      = spectralFlux(mag, prevMag);
+  const entropy   = shannonEntropy(mag);
+  const zcr       = zeroCrossingRate(timeData);
+  prevMag         = mag.slice();
+
+  // Normalize flux for display (running max)
+  fluxHist.copyWithin(0, 1); fluxHist[HISTORY-1] = flux;
+  const maxFlux = Math.max(...fluxHist, 1e-5);
+  const fluxNorm = flux / maxFlux;
+
+  // Onset detection (simple flux threshold)
+  const isOnset = fluxNorm > 0.55 && rms > 0.02;
+
+  // Copular
+  const copular = copularMetric(pitch.confidence, flatness, entropy, fluxNorm);
+
+  // Push to histories
+  pitchHist.copyWithin(0,1);    pitchHist[HISTORY-1]    = pitch.freq;
+  confHist.copyWithin(0,1);     confHist[HISTORY-1]     = pitch.confidence;
+  centroidHist.copyWithin(0,1); centroidHist[HISTORY-1] = centroid;
+  entropyHist.copyWithin(0,1);  entropyHist[HISTORY-1]  = entropy;
+  copularHist.copyWithin(0,1);  copularHist[HISTORY-1]  = copular;
+  onsetHist.copyWithin(0,1);    onsetHist[HISTORY-1]    = isOnset ? 1 : 0;
+
+  // --- Update UI text ---
+  const note = freqToNote(pitch.freq);
+  document.getElementById('note-name').textContent = pitch.confidence > 0.35 ? note.name : '—';
+  document.getElementById('note-freq').textContent = pitch.freq > 50 ? pitch.freq.toFixed(1)+' Hz' : '— Hz';
+  document.getElementById('note-cents').textContent = pitch.confidence > 0.35 ? `${note.cents > 0?'+':''}${note.cents} ¢` : '± — ¢';
+  const confPct = (pitch.confidence * 100).toFixed(0);
+  document.getElementById('conf-bar').style.width = confPct + '%';
+  document.getElementById('conf-val').textContent  = pitch.confidence.toFixed(2);
+
+  const maxCentroid = sr / 2;
+  document.getElementById('bar-centroid').style.width = (centroid/maxCentroid*100).toFixed(1)+'%';
+  document.getElementById('val-centroid').textContent  = (centroid/1000).toFixed(1)+'k';
+  document.getElementById('bar-flatness').style.width  = (flatness*100).toFixed(1)+'%';
+  document.getElementById('val-flatness').textContent  = flatness.toFixed(3);
+  document.getElementById('bar-flux').style.width      = (fluxNorm*100).toFixed(1)+'%';
+  document.getElementById('val-flux').textContent      = fluxNorm.toFixed(2);
+  document.getElementById('bar-entropy').style.width   = (entropy*100).toFixed(1)+'%';
+  document.getElementById('val-entropy').textContent   = entropy.toFixed(3);
+  document.getElementById('bar-zcr').style.width       = (zcr*100).toFixed(1)+'%';
+  document.getElementById('val-zcr').textContent       = zcr.toFixed(3);
+
+  document.getElementById('ft-rms').textContent   = rms.toFixed(4);
+  document.getElementById('ft-frame').textContent = frameCount;
+  document.getElementById('ft-lat').textContent   = (performance.now()-t0).toFixed(1)+'ms';
+  document.getElementById('pill-sr').textContent  = sr+'Hz';
+  document.getElementById('pill-fft').textContent = 'FFT '+analyser.fftSize;
+
+  if (pitch.confidence > 0.45 && pitch.freq > 50) logNote(note.name, pitch.freq, pitch.confidence);
+
+  // ── DRAW ──
+  drawSpectrogram(freqData);
+  drawWaveform(timeData, isOnset);
+  drawPianoRoll(sr);
+  drawMetrics();
+  drawCopula();
+}
+
+// ── DRAW: SPECTROGRAM (scrolling) ──
+function drawSpectrogram(freqData) {
+  const W = cSpec.width, H = cSpec.height;
+  if (W === 0 || H === 0) return;
+
+  // Shift left by 1 pixel
+  const imgData = ctxSpec.getImageData(1, 0, W-1, H);
+  ctxSpec.putImageData(imgData, 0, 0);
+
+  // Draw new column at right
+  const bins = freqData.length;
+  const step = bins / H;
+  for (let y = 0; y < H; y++) {
+    const bin = Math.floor((H - y) * step);
+    const v = freqData[Math.min(bin, bins-1)];
+    // CQT-like color mapping: low=blue, mid=cyan, high=green, peak=white
+    let r, g, b;
+    if (v < 60)       { r=0;     g=v*2;   b=v*4;   }
+    else if (v < 120) { r=0;     g=200;   b=255-(v-60)*3; }
+    else if (v < 200) { r=(v-120)*3; g=255; b=50; }
+    else              { r=255;   g=255;   b=v; }
+    ctxSpec.fillStyle = `rgb(${r},${g},${b})`;
+    ctxSpec.fillRect(W-1, y, 1, 1);
+  }
+}
+
+// ── DRAW: WAVEFORM ──
+function drawWaveform(timeData, isOnset) {
+  const W = cWave.width, H = cWave.height;
+  if (W === 0 || H === 0) return;
+  ctxWave.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctxWave.strokeStyle = '#0f1820';
+  ctxWave.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctxWave.beginPath(); ctxWave.moveTo(x,0); ctxWave.lineTo(x,H); ctxWave.stroke(); }
+  ctxWave.beginPath(); ctxWave.moveTo(0,H/2); ctxWave.lineTo(W,H/2); ctxWave.strokeStyle = '#1a2530'; ctxWave.stroke();
+
+  // Onset flash
+  if (isOnset) {
+    ctxWave.fillStyle = '#76ff0308';
+    ctxWave.fillRect(0,0,W,H);
+    ctxWave.strokeStyle = '#76ff03';
+    ctxWave.lineWidth = 1;
+    ctxWave.setLineDash([4,4]);
+    ctxWave.beginPath(); ctxWave.moveTo(0,H/2); ctxWave.lineTo(W,H/2); ctxWave.stroke();
+    ctxWave.setLineDash([]);
+  }
+
+  // Waveform
+  ctxWave.beginPath();
+  ctxWave.strokeStyle = '#00e5ffcc';
+  ctxWave.lineWidth = 1.5;
+  const step = Math.max(1, Math.floor(timeData.length / W));
+  for (let x = 0; x < W; x++) {
+    const i = x * step;
+    const y = (0.5 + timeData[i] * 0.45) * H;
+    x === 0 ? ctxWave.moveTo(x, y) : ctxWave.lineTo(x, y);
+  }
+  ctxWave.stroke();
+
+  // Confidence-colored fill
+  const conf = confHist[HISTORY-1];
+  if (conf > 0.1) {
+    ctxWave.globalAlpha = conf * 0.08;
+    ctxWave.fillStyle = '#00e5ff';
+    ctxWave.fill();
+    ctxWave.globalAlpha = 1;
+  }
+}
+
+// ── DRAW: PIANO ROLL ──
+function drawPianoRoll(sr) {
+  const W = cRoll.width, H = cRoll.height;
+  if (W === 0 || H === 0) return;
+  ctxRoll.clearRect(0, 0, W, H);
+
+  // Piano key lanes (C2=36 to C7=84)
+  const lo = 36, hi = 84;
+  for (let midi = lo; midi <= hi; midi++) {
+    const noteName = NOTE_NAMES[((midi % 12) + 12) % 12];
+    const isBlack = noteName.includes('#');
+    const y = midiToY(midi, H);
+    ctxRoll.fillStyle = isBlack ? '#0a0f14' : '#0d1318';
+    ctxRoll.fillRect(0, y, W, H / (hi - lo) + 1);
+    if (noteName === 'C') {
+      ctxRoll.strokeStyle = '#1a2530';
+      ctxRoll.lineWidth = 1;
+      ctxRoll.beginPath(); ctxRoll.moveTo(0,y); ctxRoll.lineTo(W,y); ctxRoll.stroke();
+    }
+  }
+
+  // Pitch trace
+  const xStep = W / HISTORY;
+  ctxRoll.lineWidth = 1.5;
+  for (let i = 1; i < HISTORY; i++) {
+    const f = pitchHist[i];
+    const c = confHist[i];
+    if (f < 50 || c < 0.25) continue;
+    const midi = 69 + 12 * Math.log2(f / 440);
+    if (midi < lo || midi > hi) continue;
+    const x = i * xStep;
+    const y = midiToY(midi, H);
+    const alpha = Math.min(1, c);
+    ctxRoll.strokeStyle = `rgba(0,229,255,${alpha})`;
+    ctxRoll.beginPath(); ctxRoll.arc(x, y, 2.5, 0, Math.PI*2); ctxRoll.stroke();
+  }
+
+  // Current note indicator
+  const curFreq = pitchHist[HISTORY-1];
+  const curConf = confHist[HISTORY-1];
+  if (curFreq > 50 && curConf > 0.30) {
+    const midi = 69 + 12 * Math.log2(curFreq / 440);
+    if (midi >= lo && midi <= hi) {
+      const y = midiToY(midi, H);
+      ctxRoll.fillStyle = `rgba(0,229,255,${curConf})`;
+      ctxRoll.shadowColor = '#00e5ff';
+      ctxRoll.shadowBlur = 10;
+      ctxRoll.fillRect(W - 8, y - 4, 8, 8);
+      ctxRoll.shadowBlur = 0;
+    }
+  }
+
+  // Onset markers
+  for (let i = 0; i < HISTORY; i++) {
+    if (onsetHist[i]) {
+      const x = i * xStep;
+      ctxRoll.strokeStyle = '#76ff0366';
+      ctxRoll.lineWidth = 1;
+      ctxRoll.beginPath(); ctxRoll.moveTo(x,0); ctxRoll.lineTo(x,H); ctxRoll.stroke();
+    }
+  }
+}
+
+// ── DRAW: METRICS PANEL (multi-line history) ──
+function drawMetrics() {
+  const W = cMetrics.width, H = cMetrics.height;
+  if (W === 0 || H === 0) return;
+  ctxMetrics.clearRect(0, 0, W, H);
+
+  const lane = H / 3;
+  const xStep = W / HISTORY;
+
+  // Centroid line
+  const maxC = Math.max(...centroidHist, 1000);
+  ctxMetrics.strokeStyle = '#00e5ffaa';
+  ctxMetrics.lineWidth = 1.5;
+  ctxMetrics.beginPath();
+  for (let i = 0; i < HISTORY; i++) {
+    const x = i * xStep;
+    const y = lane - (centroidHist[i]/maxC) * (lane-4) - 2;
+    i===0 ? ctxMetrics.moveTo(x,y) : ctxMetrics.lineTo(x,y);
+  }
+  ctxMetrics.stroke();
+
+  // Entropy line
+  ctxMetrics.strokeStyle = '#e040fbaa';
+  ctxMetrics.lineWidth = 1.5;
+  ctxMetrics.beginPath();
+  for (let i = 0; i < HISTORY; i++) {
+    const x = i * xStep;
+    const y = lane + lane - entropyHist[i] * (lane-4) - 2;
+    i===0 ? ctxMetrics.moveTo(x,y) : ctxMetrics.lineTo(x,y);
+  }
+  ctxMetrics.stroke();
+
+  // Flux (bars)
+  for (let i = 0; i < HISTORY; i++) {
+    const maxF = Math.max(...fluxHist, 1e-5);
+    const fv = fluxHist[i] / maxF;
+    const x = i * xStep;
+    const bH = fv * (lane - 4);
+    ctxMetrics.fillStyle = onsetHist[i] ? '#76ff03cc' : '#76ff0344';
+    ctxMetrics.fillRect(x, H - bH, xStep, bH);
+  }
+
+  // Lane dividers
+  ctxMetrics.strokeStyle = '#1a2530';
+  ctxMetrics.lineWidth = 1;
+  [lane, lane*2].forEach(y => {
+    ctxMetrics.beginPath(); ctxMetrics.moveTo(0,y); ctxMetrics.lineTo(W,y); ctxMetrics.stroke();
+  });
+
+  // Labels
+  ctxMetrics.fillStyle = '#223344';
+  ctxMetrics.font = '9px JetBrains Mono';
+  ctxMetrics.fillText('CENTROID', 4, 16);
+  ctxMetrics.fillText('ENTROPY',  4, lane + 16);
+  ctxMetrics.fillText('FLUX',     4, lane*2 + 16);
+}
+
+// ── DRAW: COPULAR METRIC ──
+function drawCopula() {
+  const W = cCopula.width, H = cCopula.height;
+  if (W < 4 || H < 4) return;
+  ctxCopula.clearRect(0, 0, W, H);
+
+  const xStep = W / HISTORY;
+
+  // Confidence fill (background)
+  for (let i = 0; i < HISTORY; i++) {
+    const x = i * xStep;
+    const c = confHist[i];
+    if (c > 0.1) {
+      ctxCopula.fillStyle = `rgba(0,229,255,${c*0.08})`;
+      ctxCopula.fillRect(x, 0, xStep, H);
+    }
+  }
+
+  // Copular line
+  ctxCopula.strokeStyle = '#e040fb';
+  ctxCopula.lineWidth = 2;
+  ctxCopula.shadowColor = '#e040fb';
+  ctxCopula.shadowBlur = 6;
+  ctxCopula.beginPath();
+  for (let i = 0; i < HISTORY; i++) {
+    const x = i * xStep;
+    const y = H - copularHist[i] * (H - 6) - 3;
+    i === 0 ? ctxCopula.moveTo(x,y) : ctxCopula.lineTo(x,y);
+  }
+  ctxCopula.stroke();
+  ctxCopula.shadowBlur = 0;
+
+  // Threshold line at 0.5
+  ctxCopula.strokeStyle = '#334455';
+  ctxCopula.lineWidth = 1;
+  ctxCopula.setLineDash([4, 4]);
+  const ty = H - 0.5 * (H-6) - 3;
+  ctxCopula.beginPath(); ctxCopula.moveTo(0, ty); ctxCopula.lineTo(W, ty); ctxCopula.stroke();
+  ctxCopula.setLineDash([]);
+
+  // Current value dot
+  const cur = copularHist[HISTORY-1];
+  const cy = H - cur * (H-6) - 3;
+  ctxCopula.fillStyle = '#e040fb';
+  ctxCopula.shadowColor = '#e040fb';
+  ctxCopula.shadowBlur = 12;
+  ctxCopula.beginPath();
+  ctxCopula.arc(W - xStep/2, cy, 4, 0, Math.PI*2);
+  ctxCopula.fill();
+  ctxCopula.shadowBlur = 0;
+
+  // Labels
+  ctxCopula.fillStyle = '#334455';
+  ctxCopula.font = '8px JetBrains Mono';
+  ctxCopula.fillText('1.0', 2, 12);
+  ctxCopula.fillText('0.5', 2, ty + 4);
+  ctxCopula.fillText('0.0', 2, H - 2);
+  ctxCopula.fillStyle = '#e040fb';
+  ctxCopula.fillText(cur.toFixed(3), W - 38, 12);
+}
+
+// ── MIC START/STOP ──
+document.getElementById('btn-mic').addEventListener('click', async () => {
+  if (running) {
+    running = false;
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    document.getElementById('btn-mic').textContent = '▶ MIC';
+    document.getElementById('btn-mic').classList.remove('active');
+    document.getElementById('pill-status').textContent = 'IDLE';
+    document.getElementById('pill-status').className = 'hud-pill idle';
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    }});
+    micStream = stream;
+    audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+    analyser  = audioCtx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0.75;
+    const src = audioCtx.createMediaStreamSource(stream);
+    src.connect(analyser);
+    running = true;
+    document.getElementById('btn-mic').textContent = '■ STOP';
+    document.getElementById('btn-mic').classList.add('active');
+    document.getElementById('pill-status').textContent = 'LIVE';
+    document.getElementById('pill-status').className = 'hud-pill live';
+    document.getElementById('pill-sr').textContent = audioCtx.sampleRate + ' Hz';
+    document.getElementById('ft-buf').textContent = analyser.fftSize;
+    requestAnimationFrame(loop);
+  } catch(e) {
+    alert('Micrófono no disponible: ' + e.message);
+  }
+});
+</script>
+</body>
+</html>
