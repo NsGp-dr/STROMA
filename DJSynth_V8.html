@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>DJSTROMA · EXPRESSIVE BEATMAKER PRO v2.5</title>
+<title>DJSTROMA · EXPRESSIVE BEATMAKER PRO v2.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&amp;family=Syne:wght@700;800&amp;display=swap" rel="stylesheet">
 <style>
@@ -140,6 +140,26 @@ select:focus { border-color:var(--left); }
 .pill.active-mode { background: #2ec4b6; color: #08090b; border-color: #2ec4b6; font-weight: bold; }
 .pill.rec-on { background: #e63946; color:#fff; border-color:#e63946; animation: recpulse 1.2s infinite; }
 @keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── RESPONSIVE ADAPTATION ── */
+@media (max-width: 768px) {
+  #wordmark, .h-sep, .hctl label {
+    display: none !important;
+  }
+  #hud {
+    justify-content: space-between;
+    padding: 0 8px;
+    gap: 4px;
+  }
+  .pill {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+  select {
+    padding: 4px 4px;
+    font-size: 10px;
+  }
+}
 
 /* ── STATUS BAR ── */
 #statusbar {
@@ -278,10 +298,11 @@ input[type=range]::-webkit-slider-thumb {
 <canvas id="canvas-ui"></canvas>
 
 <video id="cam-video" width="320" height="240" autoplay playsinline muted></video>
+
 <input type="file" id="score-file-input" accept="audio/mp3,audio/wav,audio/mpeg" style="display:none">
 
 <header id="hud">
-  <div id="wordmark">DJSTROMA<em>·</em> SYNTH LAB PRO <span style="font-size:9px; font-weight:400; opacity:0.35; font-family:'DM Mono'">[v2.5]</span></div>
+  <div id="wordmark">DJSTROMA<em>·</em> BEATMAKER PRO <span style="font-size:9px; font-weight:400; opacity:0.35; font-family:'DM Mono'">[v2.2]</span></div>
   <div class="h-sep"></div>
 
   <div class="hctl">
@@ -293,7 +314,6 @@ input[type=range]::-webkit-slider-thumb {
       <option value="penta_min" selected>Penta Min (JI)</option>
     </select>
   </div>
-  
   <div class="hctl">
     <label>TIMBRE</label>
     <select id="style-sel">
@@ -304,16 +324,6 @@ input[type=range]::-webkit-slider-thumb {
       <option value="xylophone">Mallet Box</option>
     </select>
   </div>
-
-  <div class="hctl">
-    <label>MÓDULO DER</label>
-    <select id="right-mode-sel">
-      <option value="melody" selected>Melody Pads (Notas)</option>
-      <option value="modulator">FX Vector Pad (XY)</option>
-      <option value="sequencer">Step Arp Grid (Rítmico)</option>
-    </select>
-  </div>
-
   <div class="hctl">
     <label>BPM</label>
     <select id="bpm-sel">
@@ -336,18 +346,18 @@ input[type=range]::-webkit-slider-thumb {
 </header>
 
 <div id="readout-left">
-  <span class="readout-tag">← MATRIX CHORD MATES</span>
+  <span class="readout-tag">← MATE MATRIX / SPECTRO CHORD</span>
   <span class="readout-chord" id="chord-left">—</span>
-  <span class="readout-info" id="info-left">Filtro dinámico izquierdo activo</span>
+  <span class="readout-info" id="info-left">Filtro dinámico activo</span>
 </div>
 <div id="readout-right">
-  <span class="readout-tag">MOD ENGINE RIGHT →</span>
+  <span class="readout-tag">TRAPEZOID EXP TILT →</span>
   <span class="readout-chord" id="chord-right">—</span>
-  <span class="readout-info" id="info-right" style="color:var(--right)">Monitoreo de Módulo</span>
+  <span class="readout-info" id="info-right" style="color:var(--right)">Monitoreo de Fase Frecuencial</span>
 </div>
 
 <div id="zone-label-l">CHORDS · LEFT MATRIX</div>
-<div id="zone-label-r">DYNAMIC SYNTH INTERFACE</div>
+<div id="zone-label-r">SAFE TRAPEZOID · CENTRAL CONE</div>
 
 <footer id="statusbar">
   <div id="cam-indicator">
@@ -394,7 +404,7 @@ input[type=range]::-webkit-slider-thumb {
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   ENGINE CODE PRO v2.5 — 3-MODAL INTERFACE INTERACTIVE
+   DJSTROMA BEATMAKER PRO v2.2 — ENGINE CODE (CORREGIDO)
    ═══════════════════════════════════════════════════════════════ */
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
@@ -412,12 +422,16 @@ function getJIChordIntervals(degIdx, scaleName, style) {
   const ratios = JI_RATIOS[scaleName];
   const len = ratios.length;
   const r = ratios[degIdx % len];
+  
+  // CORRECCIÓN ACOUSTIC II: Uso estricto de series de armónicos enteros puros (Just Intonation)
   if (style === 'lofi' || style === 'steven') {
     return [r, r * 2, r * 3, r * 4, r * 5];
   }
+  
   const t3 = ratios[(degIdx + 2) % len] * ((degIdx + 2) >= len ? 2 : 1);
   const t5 = ratios[(degIdx + 4) % len] * ((degIdx + 4) >= len ? 2 : 1);
   const t7 = ratios[(degIdx + 6) % len] * ((degIdx + 6) >= len ? 2 : 1);
+  
   if(style==='organ') return [r, r * 1.5, r * 2.0, r * 3.0];
   if(style==='xylophone') return [r, t3, t5];
   return [r, t3, t5, t7];
@@ -433,25 +447,17 @@ const state = {
   camReady:false, rawLandmarks:{L:null,R:null}, bpm:90, loopBeats:4, loopDuration:2.66, 
   loopStartCtxTime:0, isRecordingLoop:false, loopEvents:[],
   currentRightTilt: 0, currentRightVelocity: 1.0, currentLeftVelocity: 1.0,
-  scoreMode: false, scoreAudioBuffer: null, scoreSourceNode: null, scoreAnalyserNode: null,
-  
-  // Novedades Versión v2.5 Modular
-  rightMode: 'melody', 
-  vectorXY: { x: 0.5, y: 0.5, active: false },
-  seqSteps: [true, false, true, false, true, true, false, true], 
-  seqCurrentStep: -1,
-  lastStepTickTime: 0
+  scoreMode: false, scoreAudioBuffer: null, scoreSourceNode: null, scoreAnalyserNode: null
 };
 
 let ctx=null, masterGain=null, limiter=null, reverb=null, analyserNode=null, recDest=null, mediaRecorder=null, recordedChunks=[];
 let vinylSrc=null, vinylGain=null, activeVoices=new Map(), dynFilter=null, melodyFilter=null;
-let delayNode=null, delayFeedback=null;
 
 let lastActiveLeftZone = -1;
 let lastActiveRightZone = -1;
 
-// [FIX 1.1] Reducir MAX_VOICES a 24 para evitar saturación en PC
-const MAX_VOICES=24, SYNTH={
+// CORRECCIÓN ACOUSTIC I: Rediseño estructural de ganancias individuales para preservar el headroom
+const MAX_VOICES=45, SYNTH={
   steven:{wave:'sine',A:.03,D:.3,S:.6,R:.4,spread:3,filt:6000,gain:.18},
   lofi:{wave:'triangle',A:.04,D:.35,S:.6,R:.28,spread:5,filt:1600,gain:.20},
   piano:{wave:'triangle',A:.008,D:.8,S:.3,R:.45,spread:1,filt:8000,gain:.22},
@@ -480,6 +486,7 @@ function ensureAudio() {
   const reverbGain = ctx.createGain(); reverbGain.gain.setValueAtTime(0.20, ctx.currentTime);
   const dryGain = ctx.createGain(); dryGain.gain.setValueAtTime(0.80, ctx.currentTime);
 
+  // CORRECCIÓN ACOUSTIC I: Umbral de limitación estricto para evitar clipping
   limiter=ctx.createDynamicsCompressor(); 
   limiter.threshold.setValueAtTime(-3.0, ctx.currentTime); 
   limiter.knee.setValueAtTime(3, ctx.currentTime); 
@@ -493,23 +500,9 @@ function ensureAudio() {
   dynFilter=ctx.createBiquadFilter(); dynFilter.type='lowpass'; dynFilter.frequency.setValueAtTime(3500, ctx.currentTime); dynFilter.Q.setValueAtTime(1.0, ctx.currentTime);
   melodyFilter=ctx.createBiquadFilter(); melodyFilter.type='lowpass'; melodyFilter.frequency.setValueAtTime(3200, ctx.currentTime); melodyFilter.Q.setValueAtTime(1.2, ctx.currentTime);
 
-  // MÓDULO SINTETIZADOR: Adición de Delay de alta fidelidad para el módulo de control XY
-  delayNode = ctx.createDelay(2.0);
-  delayNode.delayTime.setValueAtTime(0.333, ctx.currentTime);
-  delayFeedback = ctx.createGain();
-  delayFeedback.gain.setValueAtTime(0.45, ctx.currentTime);
-
   masterGain.connect(limiter);
   limiter.connect(dynFilter);
   limiter.connect(melodyFilter);
-  
-  // Enrutamiento del Delay
-  melodyFilter.connect(delayNode);
-  delayNode.connect(delayFeedback);
-  delayFeedback.connect(delayNode);
-  delayNode.connect(reverb);
-  delayNode.connect(dryGain);
-
   dynFilter.connect(reverb); reverb.connect(analyserNode);
   melodyFilter.connect(reverb); 
   dynFilter.connect(dryGain); dryGain.connect(analyserNode);
@@ -527,7 +520,6 @@ function ensureAudio() {
 
 function playNote(key, freq, customGain=1.0, initDetune=0) { 
   if(!ctx) return; 
-  // [FIX 1.1] Usar stopNote para la voz más antigua en lugar de forzar-stop
   if(activeVoices.size>=MAX_VOICES){const oldest=activeVoices.keys().next().value; stopNote(oldest, true);} 
   const p=SYNTH[state.style], now=ctx.currentTime, nodes=[]; 
   const routeToFilter = key.startsWith('R_') ? melodyFilter : dynFilter; 
@@ -541,10 +533,13 @@ function playNote(key, freq, customGain=1.0, initDetune=0) {
     osc.frequency.setValueAtTime(freq*h, now); 
     osc.detune.setValueAtTime(((Math.random()-.5)*p.spread*2) + initDetune, now); 
     
+    // Distribución equilibrada de ganancia por armónico y polifonía para proteger el Headroom
     const g = (p.gain * customGain) / (hi + 1) / totalHarmonics; 
     
     env.gain.setValueAtTime(0, now); 
     env.gain.linearRampToValueAtTime(g, now + Math.max(0.006, p.A)); 
+    
+    // CORRECCIÓN ACOUSTIC III: Transición suave exponencial al nivel de Sostenido
     env.gain.setTargetAtTime(g * p.S, now + Math.max(0.006, p.A), Math.max(0.01, p.D)); 
     
     osc.connect(env); 
@@ -553,52 +548,37 @@ function playNote(key, freq, customGain=1.0, initDetune=0) {
     nodes.push({osc, env, targetGain: g*p.S}); 
   }); 
 
-  // [FIX 1.1] Guardar timestamp para cleanupStaleVoices
-  activeVoices.set(key, {nodes, p:p, lastUpdate: now}); 
+  activeVoices.set(key, {nodes, p:p}); 
   if(vinylGain){const want=(state.vinyl&&state.style==='lofi')?0.06:0; vinylGain.gain.setTargetAtTime(want, now, .1); } 
 }
 
-// [FIX 1.5] stopNote con release correcto usando exponentialRamp y tiempo real de parada
 function stopNote(key, immediate=false) { 
   const v=activeVoices.get(key); 
   if(!v) return; 
-  const now=ctx.currentTime, p=v.p;
-  // Calcular tiempo real de release para evitar corte abrupto
-  const releaseTime = immediate ? 0.008 : Math.max(0.05, p.R * 0.8);
+  const now=ctx.currentTime, p=v.p; 
   v.nodes.forEach(({osc, env})=>{ 
     if(!env) return; 
     try{ 
       env.gain.cancelScheduledValues(now); 
-      const cur = env.gain.value;
-      env.gain.setValueAtTime(Math.max(0.0001, cur), now);
-      // Usar exponentialRamp en lugar de setTargetAtTime para release limpio
-      env.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
-      osc.stop(now + releaseTime + 0.05);
+      env.gain.setValueAtTime(env.gain.value, now); 
+      if(immediate) {
+        // CORRECCIÓN ACOUSTIC III: Rampa exponencial ultracorta en lugar de corte seco a 0 para extinguir clics
+        env.gain.setTargetAtTime(0, now, 0.005); 
+        osc.stop(now + 0.03);
+      } else {
+        // CORRECCIÓN ACOUSTIC III: Desvanecimiento logarítmico natural basado en constante de tiempo
+        env.gain.setTargetAtTime(0, now, Math.max(0.01, p.R * 0.4)); 
+        osc.stop(now + (p.R * 3) + 0.1); 
+      }
     }catch(e){} 
   }); 
   activeVoices.delete(key); 
 }
 
-// [FIX 1.1] Limpiar voces obsoletas que llevan >2s sin actualización
-function cleanupStaleVoices() {
-  if(!ctx) return;
-  const now = ctx.currentTime;
-  for(const [key, v] of activeVoices.entries()) {
-    if(!v.lastUpdate) v.lastUpdate = now;
-    if(now - v.lastUpdate > 2.0) {
-      stopNote(key, true);
-    }
-  }
-}
-setInterval(cleanupStaleVoices, 500);
-
 function stopAllNotesByPrefix(prefix) {
-  // [FIX 1.1] Asegurar limpieza completa del mapa al parar por prefijo
-  const keysToStop = [];
   for (const key of activeVoices.keys()) {
-    if (key.startsWith(prefix)) keysToStop.push(key);
+    if (key.startsWith(prefix)) stopNote(key);
   }
-  keysToStop.forEach(k => stopNote(k));
 }
 
 function playChord(degIdx, fingerIdx, saveToSequencer=true) { 
@@ -624,58 +604,31 @@ function playMelodyNote(noteIdx, fingerIdx, saveToSequencer=true) {
   if(saveToSequencer && state.isRecordingLoop) pushLoopEvent('melody', noteIdx); 
 }
 
-// [FIX 1.2] Loop engine: eventos con timeOffset relativo, scheduler preciso con corrección de deriva
 function pushLoopEvent(type,value){ 
   if(!ctx||state.loopStartCtxTime===0) return; 
   let offset=ctx.currentTime-state.loopStartCtxTime; 
-  // Cuantizar al grid del BPM actual
   const stepTime=(60/state.bpm)/4; 
   offset=Math.round(offset/stepTime)*stepTime; 
   if(offset>=state.loopDuration) offset=0; 
   const exists=state.loopEvents.some(e=>e.type===type&&e.val===value&&Math.abs(e.timeOffset-offset)<0.02); 
   if(!exists){ 
-    // Guardar también el BPM de grabación para poder recalcular si cambia
-    state.loopEvents.push({type,val:value,timeOffset:offset,triggered:false,recBpm:state.bpm}); 
+    state.loopEvents.push({type,val:value,timeOffset:offset,triggered:false}); 
     document.getElementById('dl-btn').style.display=''; 
   } 
 }
 
-// [FIX 1.2] Scheduler de alta precisión para el loop
-let loopSchedulerId = null;
 function runLoopSequencerEngine(){ 
   if(!ctx) return; 
   const now=ctx.currentTime; 
   if(state.loopStartCtxTime===0) state.loopStartCtxTime=now; 
-  
-  // Reloj de Arpegiador Rítmico (Panel 3)
-  const stepDuration = (60 / state.bpm) / 2; // Corcheas
-  if (now - state.lastStepTickTime >= stepDuration) {
-    state.seqCurrentStep = (state.seqCurrentStep + 1) % 8;
-    state.lastStepTickTime = now;
-    
-    if (state.rightMode === 'sequencer' && state.seqSteps[state.seqCurrentStep]) {
-      const targetNote = state.seqCurrentStep + 2; 
-      playMelodyNote(targetNote, 88, false);
-      // [FIX 1.2] Calcular duración exacta en lugar de usar magic numbers
-      setTimeout(() => stopAllNotesByPrefix('R_88'), (stepDuration * 0.85) * 1000);
-    }
-  }
-
-  // [FIX 1.2] Recalcular loopDuration en tiempo real si el BPM cambió
-  const currentLoopDuration = (60 / state.bpm) * state.loopBeats;
-  
   let currentOffset=now-state.loopStartCtxTime; 
-  if(currentOffset >= currentLoopDuration){ 
-    state.loopStartCtxTime += currentLoopDuration; 
+  if(currentOffset>=state.loopDuration){ 
+    state.loopStartCtxTime+=state.loopDuration; 
     currentOffset=now-state.loopStartCtxTime; 
     state.loopEvents.forEach(e=>e.triggered=false); 
-  }
-  
-  // [FIX 1.2] Al reproducir, recalcular timeOffset si el BPM cambió respecto a la grabación
+  } 
   state.loopEvents.forEach(e=>{ 
-    const scaledOffset = e.recBpm ? e.timeOffset * (e.recBpm / state.bpm) : e.timeOffset;
-    const clampedOffset = scaledOffset % currentLoopDuration;
-    if(!e.triggered && currentOffset>=clampedOffset && currentOffset < clampedOffset + stepDuration*0.5){ 
+    if(!e.triggered&&currentOffset>=e.timeOffset){ 
       e.triggered=true; 
       if(e.type==='chord'){ 
         playChord(e.val,99,false); 
@@ -692,14 +645,12 @@ const cvBg=document.getElementById('canvas-bg'), cvMain=document.getElementById(
 function resize(){ W=window.innerWidth; H=window.innerHeight; [cvBg,cvMain,cvUi].forEach(c=>{c.width=W;c.height=H;}); buildZones(); buildMesh(); resizeScope(); }
 window.addEventListener('resize',resize);
 
-let chordZones=[], melodyTrapezoidPads=[], stepSequencerZones=[];
-let vectorAreaBoundaries = { x: 0, y: 0, w: 0, h: 0 };
+let chordZones=[], melodyTrapezoidPads=[];
 
 function buildZones(){
-  chordZones=[]; melodyTrapezoidPads=[]; stepSequencerZones=[];
-  const LW = W * 0.5; 
+  chordZones=[]; melodyTrapezoidPads=[];
+  const LW=W*0.5; 
   
-  // Matriz izquierda constante de acordes
   const ringDefs=[ { count:8, rRing: Math.min(LW*0.28, H*0.24), startDegIdx:0 }, { count:8, rRing: Math.min(LW*0.15, H*0.12), startDegIdx:8 } ];
   let zIdx=0;
   ringDefs.forEach(ring=>{ 
@@ -714,52 +665,29 @@ function buildZones(){
     } 
   });
 
-  const RW_Start = W * 0.55;
-  const RW_Width = W * 0.40;
+  const rows = 4;
+  const cols = 3;
+  const lerp = (a, b, t) => a + (b - a) * t;
 
-  // CONSTRUCCIÓN SEGÚN EL PANEL SELECCIONADO
-  if (state.rightMode === 'melody') {
-    // Panel 1: Matriz de Notas Clásica
-    const rows = 4; const cols = 3;
-    const lerp = (a, b, t) => a + (b - a) * t;
-    for(let r=0; r<rows; r++) {
-      const tRow = r / (rows - 1 || 1);
-      const xLeft = lerp(W * 0.58, W * 0.62, tRow);
-      const xRight = lerp(W * 0.81, W * 0.84, tRow);
-      const yRow = lerp(H * 0.22, H * 0.78, tRow);
-      for(let c=0; c<cols; c++) {
-        const tCol = c / (cols - 1 || 1);
-        const cx = lerp(xLeft, xRight, tCol); const cy = yRow;
-        const noteIdx = r * cols + c;
-        const ratios = JI_RATIOS[state.scale];
-        const ratio = ratios[noteIdx % ratios.length];
-        const oct = Math.floor(noteIdx / ratios.length) + 4;
-        const label = NOTE_NAMES[Math.round(12 * Math.log2(ratio)) % 12] + oct;
-        melodyTrapezoidPads.push({ cx, cy, r: 32, noteIdx, label, active: false, glow: 0 });
-      }
-    }
-  } else if (state.rightMode === 'modulator') {
-    // Panel 2: Límites del Pad Vectorial XY
-    vectorAreaBoundaries = {
-      x: RW_Start + 20,
-      y: H * 0.20,
-      w: RW_Width - 40,
-      h: H * 0.60
-    };
-  } else if (state.rightMode === 'sequencer') {
-    // Panel 3: Generador de Arpegios Rítmicos por Pasos
-    const stepW = (RW_Width - 40) / 8;
-    const cy = H * 0.5;
-    const stepH = H * 0.35;
-    for (let i = 0; i < 8; i++) {
-      const cx = RW_Start + 20 + (i * stepW) + stepW/2;
-      stepSequencerZones.push({
-        x: RW_Start + 20 + (i * stepW),
-        y: cy - stepH/2,
-        w: stepW - 6,
-        h: stepH,
-        cx, cy,
-        stepIdx: i
+  for(let r=0; r<rows; r++) {
+    const tRow = r / (rows - 1 || 1);
+    const xLeft = lerp(W * 0.58, W * 0.62, tRow);
+    const xRight = lerp(W * 0.81, W * 0.84, tRow);
+    const yRow = lerp(H * 0.22, H * 0.78, tRow);
+
+    for(let c=0; c<cols; c++) {
+      const tCol = c / (cols - 1 || 1);
+      const cx = lerp(xLeft, xRight, tCol);
+      const cy = yRow;
+      const noteIdx = r * cols + c;
+
+      const ratios = JI_RATIOS[state.scale];
+      const ratio = ratios[noteIdx % ratios.length];
+      const oct = Math.floor(noteIdx / ratios.length) + 4;
+      const label = NOTE_NAMES[Math.round(12 * Math.log2(ratio)) % 12] + oct;
+
+      melodyTrapezoidPads.push({
+        cx, cy, r: 32, noteIdx, label, active: false, glow: 0
       });
     }
   }
@@ -778,10 +706,10 @@ let handPos={L:[],R:[]};
 
 function processHandInputs(){
   if(state.scoreMode) return; 
+  
   const colLeft='#f5b922', colRight='#22b9f5';
   const now = ctx ? ctx.currentTime : 0;
 
-  // Lógica Izquierda (Filtro Dinámico Gestual)
   if(state.rawLandmarks.L && dynFilter){
     const lm = state.rawLandmarks.L;
     if(lm[8] && lm[4]){
@@ -816,113 +744,64 @@ function processHandInputs(){
     lastActiveLeftZone = activeLeftIdx;
   }
 
-  // LÓGICA DE PROCESAMIENTO MODULAR DE ENTRADAS DEL PANEL DERECHO
+  let activeRightIdx = -1;
   if (handPos.R.length > 0) {
     const f = handPos.R[0];
     emitParticles(f.sx, f.sy, colRight, 1);
-
-    if (state.rightMode === 'melody') {
-      /* ==================== MÓDULO 1: MELODÍA ==================== */
-      let activeRightIdx = -1;
-      let bestD = Infinity;
-      melodyTrapezoidPads.forEach((pad, i) => {
-        const d = Math.hypot(f.sx - pad.cx, f.sy - pad.cy);
-        if (d < pad.r * 1.6 && d < bestD) { bestD = d; activeRightIdx = i; }
-      });
-
-      if (activeRightIdx !== lastActiveRightZone) {
-        if (lastActiveRightZone >= 0) { stopAllNotesByPrefix('R_0'); melodyTrapezoidPads[lastActiveRightZone].active = false; }
-        if (activeRightIdx >= 0) {
-          ensureAudio();
-          melodyTrapezoidPads[activeRightIdx].active = true;
-          playMelodyNote(melodyTrapezoidPads[activeRightIdx].noteIdx, 0);
-          document.getElementById('chord-right').textContent = melodyTrapezoidPads[activeRightIdx].label;
-          emitParticles(melodyTrapezoidPads[activeRightIdx].cx, melodyTrapezoidPads[activeRightIdx].cy, colRight, 12, true);
-        } else {
-          document.getElementById('chord-right').textContent = '—';
-        }
-        lastActiveRightZone = activeRightIdx;
-      }
-    } 
-    else if (state.rightMode === 'modulator' && ctx) {
-      /* ==================== MÓDULO 2: PAD VECTORIAL XY ==================== */
-      ensureAudio();
-      const b = vectorAreaBoundaries;
-      // Normalizar coordenadas dentro del área de control XY
-      const nx = Math.max(0, Math.min(1, (f.sx - b.x) / b.w));
-      const ny = Math.max(0, Math.min(1, (f.sy - b.y) / b.h));
-      
-      state.vectorXY.x = nx;
-      state.vectorXY.y = ny;
-      state.vectorXY.active = true;
-
-      // Mapear Eje X -> Tiempo de Delay & Detune continuo
-      const targetDelay = 0.05 + (nx * 0.75); // 50ms a 800ms
-      delayNode.delayTime.setTargetAtTime(targetDelay, now, 0.15);
-      
-      // Mapear Eje Y -> Frecuencia de Filtro Melody y Resonancia
-      const targetCutoff = 180 + ((1 - ny) * 7500); // Inverse Y para sentir "brillo arriba"
-      melodyFilter.frequency.setTargetAtTime(targetCutoff, now, 0.05);
-      melodyFilter.Q.setTargetAtTime(1.0 + (nx * 8.0), now, 0.05);
-
-      document.getElementById('chord-right').textContent = 'FX MORPH';
-      document.getElementById('info-right').textContent = `DelayTime: ${Math.round(targetDelay*1000)}ms | Cutoff: ${Math.round(targetCutoff)}Hz`;
-    } 
-    else if (state.rightMode === 'sequencer') {
-      /* ==================== MÓDULO 3: SECUENCIADOR RÍTMICO ==================== */
-      ensureAudio();
-      stepSequencerZones.forEach((zone) => {
-        if (f.sx >= zone.x && f.sx <= zone.x + zone.w && f.sy >= zone.y && f.sy <= zone.y + zone.h) {
-          if (lastActiveRightZone !== zone.stepIdx) {
-            state.seqSteps[zone.stepIdx] = !state.seqSteps[zone.stepIdx]; // Invierte estado del paso
-            emitParticles(zone.cx, zone.cy, colRight, 8, true);
-            lastActiveRightZone = zone.stepIdx;
-          }
-        }
-      });
-      document.getElementById('chord-right').textContent = 'ARP GRID';
-      document.getElementById('info-right').textContent = `Step activo: ${state.seqCurrentStep + 1} / 8`;
-    }
-  } else {
-    // Si la mano derecha se retira
-    if (state.rightMode === 'melody') {
-      if (lastActiveRightZone >= 0) { stopAllNotesByPrefix('R_0'); melodyTrapezoidPads[lastActiveRightZone].active = false; lastActiveRightZone = -1; }
-    } else if (state.rightMode === 'modulator') {
-      state.vectorXY.active = false;
-    } else if (state.rightMode === 'sequencer') {
-      lastActiveRightZone = -1; // Resetea detector de clicks rítmicos
-    }
+    let bestD = Infinity;
+    melodyTrapezoidPads.forEach((pad, i) => {
+      const d = Math.hypot(f.sx - pad.cx, f.sy - pad.cy);
+      if (d < pad.r * 1.6 && d < bestD) { bestD = d; activeRightIdx = i; }
+    });
   }
 
-  // Modulaciones físicas continuas para notas disparadas por melódico clásico
-  if (state.rightMode === 'melody' && lastActiveRightZone >= 0 && ctx) {
-    const activeKey = `R_0_${melodyTrapezoidPads[lastActiveRightZone].noteIdx}`;
+  if (activeRightIdx !== lastActiveRightZone) {
+    if (lastActiveRightZone >= 0) { stopAllNotesByPrefix('R_0'); melodyTrapezoidPads[lastActiveRightZone].active = false; }
+    if (activeRightIdx >= 0) {
+      ensureAudio();
+      melodyTrapezoidPads[activeRightIdx].active = true;
+      playMelodyNote(melodyTrapezoidPads[activeRightIdx].noteIdx, 0);
+      document.getElementById('chord-right').textContent = melodyTrapezoidPads[activeRightIdx].label;
+      emitParticles(melodyTrapezoidPads[activeRightIdx].cx, melodyTrapezoidPads[activeRightIdx].cy, colRight, 12, true);
+    } else {
+      document.getElementById('chord-right').textContent = '—';
+    }
+    lastActiveRightZone = activeRightIdx;
+  }
+
+  if (activeRightIdx >= 0 && ctx) {
+    const activeKey = `R_0_${melodyTrapezoidPads[activeRightIdx].noteIdx}`;
     const voice = activeVoices.get(activeKey);
     if (voice) {
       voice.nodes.forEach(n => {
+        // CORRECCIÓN ACOUSTIC III: Rampas logarítmicas de amortiguación para actualización de detune y volumen continuo
         n.osc.detune.setTargetAtTime(state.currentRightTilt, now, 0.04);
         n.env.gain.setTargetAtTime(n.targetGain * state.currentRightVelocity, now, 0.03);
       });
     }
   }
 
-  // Amortiguación visual de destellos canvas
   chordZones.forEach(z => { z.glow = z.active ? Math.min(1, z.glow+0.25) : Math.max(0, z.glow-0.03); });
   melodyTrapezoidPads.forEach(p => { p.glow = p.active ? Math.min(1, p.glow+0.25) : Math.max(0, p.glow-0.04); });
 }
 
-/* ── 🎵 MÓDULO PARTITURA AVANZADO (Análisis en Tiempo Real) ── */
+/* ── 🎵 MÓDULO PARTITURA AVANZADO (Ingesta y Análisis) ── */
 const scoreBtn = document.getElementById('score-btn');
 const scoreFileInput = document.getElementById('score-file-input');
 
 scoreBtn.addEventListener('click', () => {
   ensureAudio();
-  if(state.scoreMode) { stopScoreMode(); } else { scoreFileInput.click(); }
+  if(state.scoreMode) {
+    stopScoreMode();
+  } else {
+    scoreFileInput.click();
+  }
 });
 
 scoreFileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if(!file) return;
+  
   showToast("Analizando matriz frecuencial...");
   const reader = new FileReader();
   reader.onload = async (event) => {
@@ -931,6 +810,7 @@ scoreFileInput.addEventListener('change', (e) => {
       startScoreMode(buffer);
     } catch(err) {
       showToast("Error decodificando espectro lineal.");
+      console.error(err);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -941,56 +821,155 @@ function startScoreMode(audioBuffer) {
   state.scoreAudioBuffer = audioBuffer;
   scoreBtn.textContent = "⏹ STOP SCORE";
   scoreBtn.classList.add('active-mode');
-  showToast("Modo Partitura Integrado");
+  showToast("Modo Partitura: Mapeando Just Intonation...");
 
   state.scoreSourceNode = ctx.createBufferSource();
   state.scoreSourceNode.buffer = audioBuffer;
-  state.scoreSourceNode.connect(ctx.destination);
+  
+  state.scoreAnalyserNode = ctx.createAnalyser();
+  state.scoreAnalyserNode.fftSize = 512;
+  
+  state.scoreSourceNode.connect(state.scoreAnalyserNode);
+  state.scoreAnalyserNode.connect(ctx.destination);
+  
   state.scoreSourceNode.start(0);
   state.scoreSourceNode.onended = () => { if(state.scoreMode) stopScoreMode(); };
+  
+  executeScoreAnalysisLoop();
 }
 
 function stopScoreMode() {
   state.scoreMode = false;
   scoreBtn.textContent = "🎵 PARTITURA";
   scoreBtn.classList.remove('active-mode');
-  showToast("Modo Gestual Restablecido");
-  try { if(state.scoreSourceNode) { state.scoreSourceNode.stop(); state.scoreSourceNode.disconnect(); } } catch(e){}
-  stopAllNotesByPrefix('L_'); stopAllNotesByPrefix('R_');
+  showToast("Modo Cámara Restablecido");
+  
+  try {
+    if(state.scoreSourceNode) { state.scoreSourceNode.stop(); state.scoreSourceNode.disconnect(); }
+  } catch(e){}
+  
+  stopAllNotesByPrefix('L_');
+  stopAllNotesByPrefix('R_');
   chordZones.forEach(z => z.active = false);
   melodyTrapezoidPads.forEach(p => p.active = false);
 }
 
-// 🧰 DETECCIÓN ÓPTICA DE CÁMARA MEDIAPIPE
-let handsInstance = null; let cameraInstance = null;
+function executeScoreAnalysisLoop() {
+  if(!state.scoreMode || !state.scoreAnalyserNode) return;
+  
+  const bufferLength = state.scoreAnalyserNode.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  state.scoreAnalyserNode.getByteFrequencyData(dataArray);
+  
+  let maxVal = 0, maxBin = 0;
+  for(let i = 4; i < bufferLength * 0.6; i++) { 
+    if(dataArray[i] > maxVal) {
+      maxVal = dataArray[i];
+      maxBin = i;
+    }
+  }
+  
+  const nyquist = ctx.sampleRate / 2;
+  const detectedFreq = maxBin * (nyquist / bufferLength);
+  
+  if(maxVal > 140) { 
+    let bestPadIdx = 0;
+    let minDiff = Infinity;
+    
+    melodyTrapezoidPads.forEach((pad, idx) => {
+      const ratios = JI_RATIOS[state.scale];
+      const ratio = ratios[pad.noteIdx % ratios.length];
+      const oct = Math.floor(pad.noteIdx / ratios.length) + 4;
+      const targetFreq = state.baseFreq * ratio * Math.pow(2, oct - 3);
+      const diff = Math.abs(detectedFreq - targetFreq);
+      if(diff < minDiff) { minDiff = diff; bestPadIdx = idx; }
+    });
+    
+    if(bestPadIdx !== lastActiveRightZone) {
+      if(lastActiveRightZone >= 0) melodyTrapezoidPads[lastActiveRightZone].active = false;
+      melodyTrapezoidPads[bestPadIdx].active = true;
+      playMelodyNote(melodyTrapezoidPads[bestPadIdx].noteIdx, 77, false); 
+      document.getElementById('chord-right').textContent = melodyTrapezoidPads[bestPadIdx].label;
+      emitParticles(melodyTrapezoidPads[bestPadIdx].cx, melodyTrapezoidPads[bestPadIdx].cy, '#22b9f5', 4, true);
+      lastActiveRightZone = bestPadIdx;
+      
+      let assignedChord = melodyTrapezoidPads[bestPadIdx].noteIdx % chordZones.length;
+      chordZones.forEach(z => z.active = false);
+      chordZones[assignedChord].active = true;
+      playChord(chordZones[assignedChord].degIdx, 77, false);
+      document.getElementById('chord-left').textContent = chordZones[assignedChord].label;
+    }
+  } else {
+    if(lastActiveRightZone >= 0) {
+      melodyTrapezoidPads[lastActiveRightZone].active = false;
+      stopAllNotesByPrefix('R_77');
+      lastActiveRightZone = -1;
+    }
+    let anyActiveChord = chordZones.findIndex(z => z.active);
+    if(anyActiveChord >= 0) {
+      chordZones[anyActiveChord].active = false;
+      stopAllNotesByPrefix('L_77');
+    }
+  }
+  
+  chordZones.forEach(z => { z.glow = z.active ? Math.min(1, z.glow+0.2) : Math.max(0, z.glow-0.03); });
+  melodyTrapezoidPads.forEach(p => { p.glow = p.active ? Math.min(1, p.glow+0.2) : Math.max(0, p.glow-0.04); });
+
+  requestAnimationFrame(executeScoreAnalysisLoop);
+}
+
+// 🧰 DETECCIÓN DE CÁMARA
+let handsInstance = null;
+let cameraInstance = null;
 const videoElement = document.getElementById('cam-video');
 
 function initMediaPipe(){ 
   if(!window.Hands){ setCamStatus('err','NO MP LIB'); return; } 
-  handsInstance = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` }); 
-  handsInstance.setOptions({ maxNumHands:2, modelComplexity:1, minDetectionConfidence:0.55, minTrackingConfidence:0.55 }); 
+  
+  handsInstance = new Hands({ 
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` 
+  }); 
+  
+  handsInstance.setOptions({ 
+    maxNumHands:2, 
+    modelComplexity:1, 
+    minDetectionConfidence:0.55, 
+    minTrackingConfidence:0.55 
+  }); 
+  
   handsInstance.onResults(onHandResults); 
   
-  navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:640, height:480 }, audio: false })
+  navigator.mediaDevices.getUserMedia({ 
+    video: { facingMode:'user', width:640, height:480 }, 
+    audio: false 
+  })
   .then(stream => { 
     if (!videoElement) return;
     videoElement.srcObject = stream; 
-    videoElement.play().catch(e => console.warn("Interacción requerida")); 
-    setCamStatus('wait','CAM CONNECTED'); 
+    videoElement.play().catch(e => console.warn("Play diferido requerido")); 
+    setCamStatus('wait','CAM OK'); 
     
     if(window.Camera && videoElement){ 
       cameraInstance = new Camera(videoElement, { 
         onFrame: async () => { 
           if(state.scoreMode) return; 
-          if(handsInstance && videoElement.readyState >= 2) { await handsInstance.send({ image: videoElement }); }
-        }, width:640, height:480 
+          if(handsInstance && videoElement.readyState >= 2) {
+            await handsInstance.send({ image: videoElement }); 
+          }
+        }, 
+        width:640, height:480 
       }); 
       cameraInstance.start().then(() => { 
-        state.camReady = true; setCamStatus('ok','ONLINE'); showToast("Célula foto-óptica calibrada."); 
+        state.camReady = true; 
+        setCamStatus('ok','READY'); 
+        showToast("Sensor óptico activo."); 
       }); 
     } 
   })
-  .catch(err => { setCamStatus('err','ERR_HW'); showToast(`Cámara inactiva: Síntesis por Click activa.`); }); 
+  .catch(err => { 
+    setCamStatus('err','ERR_CAM'); 
+    showToast(`Módulo Óptico Apagado: ${err.message || 'Sin hardware'}`);
+  }); 
 }
 
 function onHandResults(results){ 
@@ -1000,9 +979,13 @@ function onHandResults(results){
   document.body.classList.add('hands-active'); 
 
   results.multiHandLandmarks.forEach((lm)=>{ 
-    const wrist = lm[0]; const middleMCP = lm[9]; const indexTip = lm[8]; 
+    const wrist = lm[0];
+    const middleMCP = lm[9];
+    const indexTip = lm[8]; 
+
     if(indexTip && wrist && middleMCP){ 
-      const screenX=(1-indexTip.x)*W; const screenY=indexTip.y*H; 
+      const screenX=(1-indexTip.x)*W; 
+      const screenY=indexTip.y*H; 
       const side=screenX<W*0.5?'L':'R'; 
       state.rawLandmarks[side]=lm; 
       
@@ -1013,17 +996,19 @@ function onHandResults(results){
         state.currentRightVelocity = normalizedVelocity;
         const angle = Math.atan2(middleMCP.y - wrist.y, middleMCP.x - wrist.x) + Math.PI/2; 
         state.currentRightTilt = Math.max(-140, Math.min(140, angle * 230)); 
+        document.getElementById('info-right').textContent = `Tilt: ${Math.round(state.currentRightTilt)}c | Dynam Z: ${Math.round(normalizedVelocity*100)}%`;
       } else {
         state.currentLeftVelocity = normalizedVelocity;
-        document.getElementById('info-left').textContent = `Strike Z: ${Math.round(normalizedVelocity*100)}%`;
+        document.getElementById('info-left').textContent = `Pegada Z: ${Math.round(normalizedVelocity*100)}%`;
       }
+
       handPos[side].push({sx:screenX,sy:screenY}); 
     } 
   }); 
 }
 function setCamStatus(type,text){ document.getElementById('cam-dot').className='cam-dot '+type; document.getElementById('cam-label').textContent=text; }
 
-// Malla Cinemática Estética Izquierda
+// Malla Cinemática Estética
 let meshNodes=[], meshEdges=[], MESH_ROWS=7,MESH_COLS=5;
 function buildMesh(){ meshNodes.length=0; meshEdges.length=0; const LW=W*0.5; const pad=40; for(let r=0;r<MESH_ROWS;r++) for(let c=0;c<MESH_COLS;c++){ const ox=pad+(LW-pad*2)*(c/(MESH_COLS-1)); const oy=60+(H-120)*(r/(MESH_ROWS-1)); meshNodes.push({x:ox,y:oy,vx:0,vy:0,ox,oy}); } for(let r=0;r<MESH_ROWS;r++) for(let c=0;c<MESH_COLS;c++){ const i=r*MESH_COLS+c; if(c<MESH_COLS-1) meshEdges.push([i,i+1]); if(r<MESH_ROWS-1) meshEdges.push([i,i+MESH_COLS]); if(c<MESH_COLS-1&&r<MESH_ROWS-1) meshEdges.push([i,i+MESH_COLS+1]); } }
 function updateMesh(){ const allFingers=[...handPos.L]; const stiffness=0.06, damping=0.88; meshNodes.forEach(n=>{ let fx=(n.ox-n.x)*stiffness; let fy=(n.oy-n.y)*stiffness; allFingers.forEach(f=>{ const dx=n.x-f.sx, dy=n.y-f.sy; const d=Math.hypot(dx,dy)+1; if(d<130){ const force=(130-d)*(130-d)*0.00045; fx+=(dx/d)*force; fy+=(dy/d)*force; } }); chordZones.forEach(z=>{ if(z.active){ const dx=n.x-z.cx, dy=n.y-z.cy; const d=Math.hypot(dx,dy)+1; if(d<95){ const force=(95-d)*0.0006; fx+=(-dx/d)*force; fy+=(-dy/d)*force; } } }); n.vx=(n.vx+fx)*damping; n.vy=(n.vy+fy)*damping; n.x+=n.vx; n.y+=n.vy; }); }
@@ -1039,124 +1024,70 @@ function drawScope(){
   document.getElementById('vu-fill').style.width=rms+'%'; 
 }
 
-/* ── RENDERIZADO GENERAL CANVAS DEL INSTRUMENTO ── */
 function render(ts){ 
   requestAnimationFrame(render); 
-  if(!state.scoreMode) { runLoopSequencerEngine(); processHandInputs(); }
+  if(!state.scoreMode) {
+    runLoopSequencerEngine(); 
+    processHandInputs();
+  }
   updateMesh();
   
-  const isNight = document.body.dataset.theme !== 'day';
-  ctxBg.clearRect(0,0,W,H); ctxBg.fillStyle=isNight?'#08090b':'#f4f0e6'; ctxBg.fillRect(0,0,W,H);
+  ctxBg.clearRect(0,0,W,H); ctxBg.fillStyle=document.body.dataset.theme!=='day'?'#08090b':'#f4f0e6'; ctxBg.fillRect(0,0,W,H);
   
-  if(state.camReady && videoElement && videoElement.readyState>=2 && !state.scoreMode){ ctxBg.save(); ctxBg.translate(W,0); ctxBg.scale(-1,1); ctxBg.globalAlpha=isNight?0.14:0.07; ctxBg.drawImage(videoElement,0,0,W,H); ctxBg.restore(); }
+  if(state.camReady && videoElement && videoElement.readyState>=2 && !state.scoreMode){ ctxBg.save(); ctxBg.translate(W,0); ctxBg.scale(-1,1); ctxBg.globalAlpha=document.body.dataset.theme!=='day'?0.16:0.09; ctxBg.drawImage(videoElement,0,0,W,H); ctxBg.restore(); }
   
-  const divX=W*0.5; ctxBg.fillStyle=isNight?'rgba(255,255,255,0.02)':'rgba(0,0,0,0.03)'; ctxBg.fillRect(divX-1,60,2,H-110);
+  const divX=W*0.5; ctxBg.fillStyle=document.body.dataset.theme!=='day'?'rgba(255,255,255,0.02)':'rgba(0,0,0,0.03)'; ctxBg.fillRect(divX-1,60,2,H-110);
   
-  ctxM.clearRect(0,0,W,H); 
-  const meshAlpha=isNight?0.15:0.11; ctxM.strokeStyle=isNight?`rgba(245,185,34,${meshAlpha})`:`rgba(186,117,0,${meshAlpha})`; ctxM.lineWidth=0.7; 
+  ctxM.clearRect(0,0,W,H); const meshAlpha=document.body.dataset.theme!=='day'?0.15:0.11; ctxM.strokeStyle=document.body.dataset.theme!=='day'?`rgba(245,185,34,${meshAlpha})`:`rgba(186,117,0,${meshAlpha})`; ctxM.lineWidth=0.7; 
   meshEdges.forEach(([a,b])=>{ const na=meshNodes[a], nb=meshNodes[b]; ctxM.beginPath(); ctxM.moveTo(na.x,na.y); ctxM.lineTo(nb.x,nb.y); ctxM.stroke(); });
   
-  const tNow=ts*0.001;
-  const colLeft=isNight?'245,185,34':'186,117,0';
-  const colRight = isNight ? '34,185,245' : '0,124,184';
+  const tNow=ts*0.001, isNight=document.body.dataset.theme!=='day';
   
-  // Dibujar panel izquierdo (Acordes)
-  chordZones.forEach((z)=>{ 
+  chordZones.forEach((z,i)=>{ 
     const pulse=z.active?z.r*(1+0.07*Math.sin(tNow*15)):z.r*(0.98+0.02*Math.sin(tNow*1.2)); 
     if(z.glow>0.005){ 
-      const grd=ctxM.createRadialGradient(z.cx,z.cy,pulse*0.3,z.cx,z.cy,pulse*2.2); 
-      grd.addColorStop(0,`rgba(${colLeft},${z.glow*0.25})`); grd.addColorStop(1,`rgba(${colLeft},0)`); ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse*2.2,0,Math.PI*2); ctxM.fillStyle=grd; ctxM.fill(); 
+      const grd=ctxM.createRadialGradient(z.cx,z.cy,pulse*0.3,z.cx,z.cy,pulse*2.2); const col=isNight?'245,185,34':'186,117,0'; 
+      grd.addColorStop(0,`rgba(${col},${z.glow*0.25})`); grd.addColorStop(1,`rgba(${col},0)`); ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse*2.2,0,Math.PI*2); ctxM.fillStyle=grd; ctxM.fill(); 
     } 
-    ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse,0,Math.PI*2); ctxM.strokeStyle=z.active?`rgba(${colLeft},0.95)`:`rgba(${colLeft},${0.14 + z.glow*0.45})`; ctxM.lineWidth=z.active?2.5:1; ctxM.stroke(); 
-    ctxM.font=`${z.active?700:500} 11px 'Syne', sans-serif`; ctxM.fillStyle=`rgba(${colLeft},${z.active?1.0:0.40 + z.glow * 0.4})`; ctxM.textAlign='center'; ctxM.textBaseline='middle'; ctxM.fillText(z.label,z.cx,z.cy); 
+    const col=isNight?'245,185,34':'186,117,0'; ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse,0,Math.PI*2); ctxM.strokeStyle=z.active?`rgba(${col},0.95)`:`rgba(${col},${0.14 + z.glow*0.45})`; ctxM.lineWidth=z.active?2.5:1; ctxM.stroke(); 
+    ctxM.font=`${z.active?700:500} 11px 'Syne', sans-serif`; ctxM.fillStyle=`rgba(${col},${z.active?1.0:0.40 + z.glow * 0.4})`; ctxM.textAlign='center'; ctxM.textBaseline='middle'; ctxM.fillText(z.label,z.cx,z.cy); 
   });
   
-  // DIBUJAR PANELES DE DERECHA SEGÚN EL MÓDULO SELECCIONADO
-  if (state.rightMode === 'melody') {
-    melodyTrapezoidPads.forEach(pad => {
-      const pulseR = pad.active ? pad.r * (1 + 0.06 * Math.sin(tNow * 16)) : pad.r;
-      if(pad.glow > 0.005) {
-        const grd = ctxM.createRadialGradient(pad.cx, pad.cy, pulseR*0.3, pad.cx, pad.cy, pulseR*2.2);
-        grd.addColorStop(0, `rgba(${colRight},${pad.glow*0.30})`); grd.addColorStop(1, 'transparent');
-        ctxM.beginPath(); ctxM.arc(pad.cx, pad.cy, pulseR*2.2, 0, Math.PI*2); ctxM.fillStyle = grd; ctxM.fill();
-      }
-      ctxM.beginPath(); ctxM.arc(pad.cx, pad.cy, pulseR, 0, Math.PI*2);
-      ctxM.strokeStyle = pad.active ? `rgba(${colRight}, 0.95)` : `rgba(${colRight}, ${0.18 + pad.glow * 0.55})`;
-      ctxM.lineWidth = pad.active ? 2.5 : 1.2; ctxM.stroke();
-      if(pad.active) { ctxM.fillStyle = `rgba(${colRight}, 0.08)`; ctxM.fill(); }
-      ctxM.font = `${pad.active?700:500} 11px 'DM Mono', monospace`; ctxM.fillStyle = `rgba(${colRight}, ${pad.active?1.0:0.40 + pad.glow * 0.45})`;
-      ctxM.textAlign = 'center'; ctxM.textBaseline = 'middle'; ctxM.fillText(pad.label, pad.cx, pad.cy);
-    });
-  } 
-  else if (state.rightMode === 'modulator') {
-    // Renderizado del Pad Vectorial XY
-    const b = vectorAreaBoundaries;
-    ctxM.fillStyle = isNight ? 'rgba(34,185,245,0.03)' : 'rgba(0,124,184,0.04)';
-    ctxM.fillRect(b.x, b.y, b.w, b.h);
-    ctxM.strokeStyle = isNight ? 'rgba(34,185,245,0.25)' : 'rgba(0,124,184,0.3)';
-    ctxM.lineWidth = 1; ctxM.strokeRect(b.x, b.y, b.w, b.h);
+  const colR = isNight ? '34,185,245' : '0,124,184';
+  melodyTrapezoidPads.forEach(pad => {
+    const pulseR = pad.active ? pad.r * (1 + 0.06 * Math.sin(tNow * 16)) : pad.r;
+    if(pad.glow > 0.005) {
+      const grd = ctxM.createRadialGradient(pad.cx, pad.cy, pulseR*0.3, pad.cx, pad.cy, pulseR*2.2);
+      grd.addColorStop(0, `rgba(${isNight?'34,185,245':'0,124,184'},${pad.glow*0.30})`);
+      grd.addColorStop(1, 'transparent');
+      ctxM.beginPath(); ctxM.arc(pad.cx, pad.cy, pulseR*2.2, 0, Math.PI*2);
+      ctxM.fillStyle = grd; ctxM.fill();
+    }
     
-    // Líneas de cruce del cursor interno
-    const crossX = b.x + state.vectorXY.x * b.w;
-    const crossY = b.y + state.vectorXY.y * b.h;
+    ctxM.beginPath();
+    ctxM.arc(pad.cx, pad.cy, pulseR, 0, Math.PI*2);
+    ctxM.strokeStyle = pad.active ? `rgba(${colR}, 0.95)` : `rgba(${colR}, ${0.18 + pad.glow * 0.55})`;
+    ctxM.lineWidth = pad.active ? 2.5 : 1.2;
+    ctxM.stroke();
+    if(pad.active) { ctxM.fillStyle = `rgba(${colR}, 0.08)`; ctxM.fill(); }
     
-    ctxM.strokeStyle = isNight ? 'rgba(34,185,245,0.15)' : 'rgba(0,124,184,0.2)';
-    ctxM.beginPath(); ctxM.moveTo(crossX, b.y); ctxM.lineTo(crossX, b.y + b.h); ctxM.moveTo(b.x, crossY); ctxM.lineTo(b.x + b.w, crossY); ctxM.stroke();
-    
-    // Cursor indicador incandescente
-    const cursorRadius = state.vectorXY.active ? 14 : 8;
-    const grd = ctxM.createRadialGradient(crossX, crossY, 2, crossX, crossY, cursorRadius * 2);
-    grd.addColorStop(0, `rgba(${colRight}, 0.8)`);
-    grd.addColorStop(1, 'transparent');
-    ctxM.fillStyle = grd; ctxM.beginPath(); ctxM.arc(crossX, crossY, cursorRadius * 2, 0, Math.PI*2); ctxM.fill();
-    
-    ctxM.font = "9px 'DM Mono'"; ctxM.fillStyle = `rgba(${colRight}, 0.5)`;
-    ctxM.fillText("TIMBRE / RESONANCE (X)", b.x + 15, b.y + b.h - 15);
-    ctxM.fillText("FILTER CUTOFF (Y)", b.x + 15, b.y + 20);
-  } 
-  else if (state.rightMode === 'sequencer') {
-    // Renderizado del Secuenciador Rítmico de Pasos (Arpegiador)
-    stepSequencerZones.forEach((zone, idx) => {
-      const isCurrentPlayhead = (idx === state.seqCurrentStep);
-      const isActiveStep = state.seqSteps[idx];
-      
-      if (isActiveStep) {
-        ctxM.fillStyle = isCurrentPlayhead ? `rgba(${colRight}, 0.4)` : `rgba(${colRight}, 0.15)`;
-        ctxM.strokeStyle = `rgba(${colRight}, 0.8)`;
-      } else {
-        ctxM.fillStyle = isCurrentPlayhead ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.01)';
-        ctxM.strokeStyle = isCurrentPlayhead ? `rgba(${colRight}, 0.4)` : 'rgba(255,255,255,0.1)';
-      }
-      
-      ctxM.lineWidth = isCurrentPlayhead ? 2 : 1;
-      ctxM.fillRect(zone.x, zone.y, zone.w, zone.h);
-      ctxM.strokeRect(zone.x, zone.y, zone.w, zone.h);
-      
-      // Indicador del número de paso
-      ctxM.font = "10px 'DM Mono'";
-      ctxM.fillStyle = isCurrentPlayhead ? `rgba(${colRight}, 1)` : 'rgba(255,255,255,0.3)';
-      ctxM.fillText(`0${idx+1}`, zone.cx, zone.y + 20);
-      
-      if (isActiveStep) {
-        ctxM.beginPath(); ctxM.arc(zone.cx, zone.cy, 4, 0, Math.PI*2);
-        ctxM.fillStyle = `rgba(${colRight}, 0.9)`; ctxM.fill();
-      }
-    });
-  }
+    ctxM.font = `${pad.active?700:500} 11px 'DM Mono', monospace`;
+    ctxM.fillStyle = `rgba(${colR}, ${pad.active?1.0:0.40 + pad.glow * 0.45})`;
+    ctxM.textAlign = 'center'; ctxM.textBaseline = 'middle';
+    ctxM.fillText(pad.label, pad.cx, pad.cy);
+  });
 
-  // Animación de partículas de golpe
   for(let i=particles.length-1;i>=0;i--){ 
     const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.life-=p.decay; if(p.life<=0){ particles.splice(i,1); continue; } 
     ctxM.beginPath(); ctxM.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctxM.fillStyle=p.color+Math.round(p.life*255).toString(16).padStart(2,'0'); ctxM.fill(); 
   }
   
-  // Dibujar articulaciones esqueléticas de la mano si está activa
   if(!state.scoreMode) {
     const HAND_BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
     ['L','R'].forEach(side=>{ 
       const lm=state.rawLandmarks[side]; 
       if(lm){ 
-        const colBase=side==='L'?`#${colLeft.replace(/,/g,'')}`: (isNight?'#22b9f5':'#007cb8'); ctxM.save(); ctxM.strokeStyle=colBase; ctxM.lineWidth=1.2; 
+        const colBase=side==='L'?(isNight?'#f5b922':'#ba7500'):(isNight?'#22b9f5':'#007cb8'); ctxM.save(); ctxM.strokeStyle=colBase; ctxM.lineWidth=1.2; 
         HAND_BONES.forEach(([bA,bB])=>{ const ptA=lm[bA], ptB=lm[bB]; if(ptA&&ptB){ ctxM.beginPath(); ctxM.moveTo((1-ptA.x)*W,ptA.y*H); ctxM.lineTo((1-ptB.x)*W,ptB.y*H); ctxM.globalAlpha=0.10; ctxM.stroke(); } }); ctxM.restore(); 
       } 
     });
@@ -1172,26 +1103,37 @@ function render(ts){
   drawScope(); 
 }
 
-// CONTROLES DE LA INTERFAZ DE USUARIO Y EXPORTACIÓN DE AUDIO
+// UI Controls & Recorder Native Export
 const recBtn=document.getElementById('rec-btn'), dlBtn=document.getElementById('dl-btn'), recTimer=document.getElementById('rec-timer');
 
 recBtn.addEventListener('click',()=>{ 
   ensureAudio(); 
   if(state.isRecordingLoop){ 
-    state.isRecordingLoop=false; recBtn.textContent='⏺ REC'; recBtn.classList.remove('rec-on'); recTimer.textContent=''; 
+    state.isRecordingLoop=false; 
+    recBtn.textContent='⏺ REC'; 
+    recBtn.classList.remove('rec-on'); 
+    recTimer.textContent=''; 
     if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); }
     showToast('Procesando master estéreo...'); 
   } else { 
-    state.isRecordingLoop=true; recBtn.textContent='⏹ STOP'; recBtn.classList.add('rec-on'); recTimer.textContent='REC'; 
+    state.isRecordingLoop=true; 
+    recBtn.textContent='⏹ STOP'; 
+    recBtn.classList.add('rec-on'); 
+    recTimer.textContent='REC'; 
+    
     recordedChunks = [];
     mediaRecorder = new MediaRecorder(recDest.stream, { mimeType: 'audio/webm' });
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = () => {
       const blob = new Blob(recordedChunks, { type: 'audio/webm' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `DJSTROMA_SynthTake_${Date.now()}.webm`; a.click();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `DJSTROMA_Take_${Date.now()}.webm`;
+      a.click();
     };
-    mediaRecorder.start(); showToast('Capturando señal pura estéreo...'); 
+    mediaRecorder.start();
+    showToast('Capturando señal pura estéreo...'); 
   } 
 });
 
@@ -1200,15 +1142,6 @@ let isMuted=false; document.getElementById('mute-btn').addEventListener('click',
 document.getElementById('scale-sel').addEventListener('change',e=>{ state.scale=e.target.value; buildZones(); showToast('Afinación Justa: '+e.target.value); });
 document.getElementById('style-sel').addEventListener('change',e=>{ state.style=e.target.value; buildZones(); showToast('Módulo de Timbres: '+e.target.value); });
 document.getElementById('bpm-sel').addEventListener('change',e=>{ state.bpm=parseInt(e.target.value); state.loopDuration=(60/state.bpm)*state.loopBeats; showToast('Tempo: '+e.target.value+' BPM'); });
-
-// Selector Dinámico de Paneles Derechos
-document.getElementById('right-mode-sel').addEventListener('change', e => {
-  state.rightMode = e.target.value;
-  stopAllNotesByPrefix('R_');
-  buildZones();
-  showToast('Panel derecho: ' + e.target.options[e.target.selectedIndex].text);
-});
-
 const themeBtn=document.getElementById('theme-btn'); themeBtn.addEventListener('click',()=>{ state.theme=state.theme==='night'?'day':'night'; document.body.dataset.theme=state.theme; themeBtn.textContent=state.theme==='night'?'☀':'🌙'; });
 document.getElementById('freq-btn').addEventListener('click',()=>{ ensureAudio(); document.getElementById('freq-modal').classList.add('open'); });
 document.getElementById('freq-close').addEventListener('click',()=>{ document.getElementById('freq-modal').classList.remove('open'); });
