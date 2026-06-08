@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SOUNDGO · MIXTURA V6 (Stage Looper Edition)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&amp;family=Syne:wght@700;800&amp;display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────
+   DESIGN TOKENS — Night / Day
+   ─────────────────────────────────────── */
+:root {
+  --bg:        #0b0c0e;
+  --surface:   #13161a;
+  --surface2:  #1c2029;
+  --border:    #2a2f3a;
+  --text:      #e8eaf0;
+  --text-dim:  #5a6070;
+  --text-mid:  #9aa0b0;
+  --left:      #f0c040;
+  --left-glow: rgba(240,192,64,0.5);
+  --left-dim:  rgba(240,192,64,0.12);
+  --right:     #40c8f0;
+  --right-glow:rgba(64,200,240,0.5);
+  --right-dim: rgba(64,200,240,0.12);
+  --shadow:    0 2px 20px rgba(0,0,0,0.8);
+  --radius:    10px;
+  --radius-sm: 6px;
+}
+[data-theme="day"] {
+  --bg:        #f0ece3;
+  --surface:   #ffffff;
+  --surface2:  #e4dfd6;
+  --border:    #c8c3b8;
+  --text:      #111214;
+  --text-dim:  #888070;
+  --text-mid:  #555050;
+  --left:      #b87800;
+  --left-glow: rgba(184,120,0,0.4);
+  --left-dim:  rgba(184,120,0,0.10);
+  --right:     #006ea8;
+  --right-glow:rgba(0,110,168,0.4);
+  --right-dim: rgba(0,110,168,0.10);
+}
+
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html, body {
+  width:100%; height:100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size:13px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* ── MAIN CANVAS STACK ── */
+#canvas-bg,
+#canvas-main,
+#canvas-ui {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+#canvas-bg   { z-index: 1; }  
+#canvas-main { z-index: 2; }  
+#canvas-ui   { z-index: 3; pointer-events:none; } 
+
+/* ── HUD HEADER ── */
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 48px;
+  background: linear-gradient(to bottom, rgba(11,12,14,0.88) 60%, transparent);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+[data-theme="day"] #hud {
+  background: linear-gradient(to bottom, rgba(240,236,227,0.92) 60%, transparent);
+}
+#wordmark {
+  font-family: 'Syne', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#wordmark em { color: var(--left); font-style:normal; }
+.h-sep { width:1px; height:20px; background:var(--border); flex-shrink:0; }
+.spacer { flex:1; }
+
+.hctl { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.hctl label { font-size:10px; letter-spacing:.08em; color:var(--text-dim); white-space:nowrap; }
+
+select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size:11px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 80px;
+}
+select:focus { outline:none; border-color:var(--left); }
+select option { background: var(--surface); }
+
+.pill {
+  display:inline-flex; align-items:center; gap:4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-mid);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+  flex-shrink: 0;
+}
+.pill:hover { background: rgba(255,255,255,0.10); color: var(--text); }
+.pill.on { background: var(--left); color: var(--bg); border-color: var(--left); }
+.pill.rec-on { background: #e03030; color:#fff; border-color:#e03030; animation: recpulse 1s infinite; }
+@keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ── STATUS BAR ── */
+#statusbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 36px;
+  background: linear-gradient(to top, rgba(11,12,14,0.88) 60%, transparent);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+[data-theme="day"] #statusbar {
+  background: linear-gradient(to top, rgba(240,236,227,0.92) 60%, transparent);
+}
+#cam-indicator { display:flex; align-items:center; gap:5px; }
+.cam-dot { width:6px; height:6px; border-radius:50%; background:var(--text-dim); }
+.cam-dot.ok   { background:#3a3; }
+.cam-dot.err  { background:#d33; }
+.cam-dot.wait { background:#a80; animation:blink .8s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.cam-lbl { font-size:10px; color:var(--text-dim); }
+
+#scope-wrap { flex:1; height:22px; overflow:hidden; }
+#scope { width:100%; height:100%; display:block; }
+#vu { width:56px; height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; flex-shrink:0; }
+#vu-fill { height:100%; width:0; background:linear-gradient(90deg,#3a3,#f0c040,#d33); border-radius:3px; transition:width .05s; }
+#rec-timer { color:#e03030; font-size:11px; min-width:36px; font-weight: bold; }
+
+/* ── HUD READOUTS ── */
+#readout-left, #readout-right {
+  position: fixed;
+  top: 56px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+#readout-left  { left: 14px; }
+#readout-right { right: 14px; align-items: flex-end; }
+.readout-tag {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+#readout-left  .readout-tag  { color: var(--left); }
+#readout-right .readout-tag  { color: var(--right); }
+.readout-chord {
+  font-family: 'Syne', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.02em;
+  transition: opacity .15s;
+}
+#readout-left  .readout-chord { color: var(--left);  text-shadow: 0 0 30px var(--left-glow); }
+#readout-right .readout-chord { color: var(--right); text-shadow: 0 0 30px var(--right-glow); }
+.readout-info { font-size:10px; color:var(--text-dim); letter-spacing:.06em; }
+
+/* ── MODAL ── */
+#freq-modal {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.72); z-index:200;
+  align-items:center; justify-content:center; backdrop-filter:blur(4px);
+}
+#freq-modal.open { display:flex; }
+#freq-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:20px 24px;
+  width:min(340px,90vw);
+  display:flex; flex-direction:column; gap:12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+#freq-box h3 { font-family:'Syne',sans-serif; font-size:15px; font-weight:800; }
+.slider-row { display:flex; flex-direction:column; gap:4px; }
+.slider-row label { font-size:11px; color:var(--text-dim); }
+input[type=range] {
+  width:100%; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  height:5px;
+  background:linear-gradient(90deg,var(--left) var(--pct,50%),var(--border) var(--pct,50%));
+  border-radius:3px; outline:none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:17px; height:17px;
+  background:var(--text); border-radius:50%; cursor:pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width:17px; height:17px; background:var(--text); border-radius:50%; border:none; cursor:pointer;
+}
+.slider-val { font-size:12px; color:var(--text); text-align:right; }
+.modal-close {
+  align-self:flex-end; padding:6px 16px;
+  border:1px solid var(--border); border-radius:20px;
+  background:var(--surface2); color:var(--text);
+  font-family:'DM Mono',monospace; font-size:11px; cursor:pointer;
+}
+.modal-close:hover { background:rgba(255,255,255,0.08); }
+
+/* ── TOAST ── */
+#toast {
+  position:fixed; bottom:46px; left:50%;
+  transform:translateX(-50%) translateY(10px);
+  background:var(--text); color:var(--bg);
+  padding:7px 18px; border-radius:20px;
+  font-size:11px; font-weight:500;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s;
+  z-index:999; white-space:nowrap;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── ZONE LABELS ── */
+#zone-label-l, #zone-label-r {
+  position: fixed; top: 50%; transform: translateY(-50%);
+  z-index: 8; pointer-events:none;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: .18em; text-transform: uppercase;
+  writing-mode: vertical-rl;
+  opacity: 0.12;
+  transition: opacity .4s;
+}
+#zone-label-l { left: 6px; color: var(--left); }
+#zone-label-r { right: 6px; color: var(--right); transform: translateY(-50%) rotate(180deg); }
+body.hands-active #zone-label-l,
+body.hands-active #zone-label-r { opacity: 0; }
+
+#cam-video { position:fixed; top:-9999px; left:-9999px; width:320px; height:240px; }
+</style>
+</head>
+<body data-theme="night">
+
+<canvas id="canvas-bg"></canvas>
+<canvas id="canvas-main"></canvas>
+<canvas id="canvas-ui"></canvas>
+
+<video id="cam-video" width="320" height="240" autoplay playsinline muted></video>
+
+<header id="hud">
+  <div id="wordmark">SOUND<em>GO</em> · MIXTURA <span style="font-size:10px; font-weight:400; opacity:0.5; font-family:'DM Mono'">[LOOP STAGE V6]</span></div>
+  <div class="h-sep"></div>
+
+  <div class="hctl">
+    <label>SCALE</label>
+    <select id="scale-sel">
+      <option value="major">C Major</option>
+      <option value="minor">A Minor</option>
+      <option value="penta_maj">Penta Maj</option>
+      <option value="penta_min">Penta Min</option>
+    </select>
+  </div>
+  <div class="hctl">
+    <label>TIMBRE</label>
+    <select id="style-sel">
+      <option value="lofi" selected>Lo-fi</option>
+      <option value="steven">Steven U.</option>
+      <option value="piano">Piano</option>
+      <option value="organ">Organ</option>
+      <option value="xylophone">Xylophone</option>
+    </select>
+  </div>
+  <div class="hctl">
+    <label>BPM</label>
+    <select id="bpm-sel">
+      <option value="80">80 BPM</option>
+      <option value="95">95 BPM</option>
+      <option value="110">110 BPM</option>
+      <option value="120" selected>120 BPM</option>
+      <option value="140">140 BPM</option>
+    </select>
+  </div>
+
+  <div class="spacer"></div>
+
+  <button class="pill" id="freq-btn">♩ TUNE</button>
+  <button class="pill" id="rec-btn">⏺ LOOP REC</button>
+  <span id="rec-timer"></span>
+  <button class="pill" id="dl-btn" style="display:none">❌ CLEAR LOOP</button>
+  <button class="pill" id="mute-btn">VOL</button>
+  <button class="pill" id="theme-btn">☀</button>
+</header>
+
+<div id="readout-left">
+  <span class="readout-tag">← CHORD INDEX</span>
+  <span class="readout-chord" id="chord-left">—</span>
+  <span class="readout-info" id="info-left">left pad selection</span>
+</div>
+<div id="readout-right">
+  <span class="readout-tag">MELODY EXPRESSION →</span>
+  <span class="readout-chord" id="chord-right">—</span>
+  <span class="readout-info" id="info-right" style="color:var(--right)">Radius dynamic filter</span>
+</div>
+
+<div id="zone-label-l">CHORDS · LEFT INTERACTOR</div>
+<div id="zone-label-r">CONCENTRIC MELODY · RIGHT</div>
+
+<footer id="statusbar">
+  <div id="cam-indicator">
+    <div class="cam-dot wait" id="cam-dot"></div>
+    <span class="cam-lbl" id="cam-label">INIT</span>
+  </div>
+  <div class="h-sep"></div>
+  <div id="scope-wrap"><canvas id="scope"></canvas></div>
+  <div class="h-sep"></div>
+  <div id="vu"><div id="vu-fill"></div></div>
+</footer>
+
+<div id="freq-modal">
+  <div id="freq-box">
+    <h3>Tuning Parameters</h3>
+    <div class="slider-row">
+      <label>Base frequency</label>
+      <input type="range" id="freq-sl" min="80" max="1000" value="261" step="1">
+      <div class="slider-val" id="freq-disp">261 Hz — C4</div>
+    </div>
+    <div class="slider-row">
+      <label>Master volume</label>
+      <input type="range" id="vol-sl" min="0" max="100" value="70" step="1">
+      <div class="slider-val" id="vol-disp">70%</div>
+    </div>
+    <div class="slider-row">
+      <label>Base octave (chords)</label>
+      <input type="range" id="oct-sl" min="2" max="6" value="3" step="1">
+      <div class="slider-val" id="oct-disp">Octave 3</div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+      <input type="checkbox" id="vinyl-chk" style="width:15px;height:15px;accent-color:var(--left)">
+      Vinyl noise (Lo-fi)
+    </label>
+    <button class="modal-close" id="freq-close">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675459673/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675459673/hands.js" crossorigin="anonymous"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   SOUNDGO MIXTURA V6  ·  Loop Sequencer & Radial Filter Architecture
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─────────────────────────────────────────────
+// A. MUSIC THEORY ENGINE
+// ─────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const SCALES = {
+  major:     [0,2,4,5,7,9,11],
+  minor:     [0,2,3,5,7,8,10],
+  penta_maj: [0,2,4,7,9],
+  penta_min: [0,3,5,7,10],
+};
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IIb','IIIb','Vb','VIb','VIIb','IVadd','IXsus','Vaug'];
+const LEFT_DEGREES = [0,1,2,3, 4,5,6,7, 0,2,4,6, 1,3,5,7];
+
+function chordIntervals(degIdx, scaleName, style) {
+  const sc=SCALES[scaleName], len=sc.length;
+  const r=sc[degIdx%len];
+  const t3=sc[(degIdx+2)%len]+((degIdx+2)>=len?12:0);
+  const t5=sc[(degIdx+4)%len]+((degIdx+4)>=len?12:0);
+  const t7=sc[(degIdx+6)%len]+((degIdx+6)>=len?12:0);
+  const t9=sc[((degIdx+8)%len)]+12;
+  const norm=x=>{let v=((x-r)%12+12)%12;return v===0?12:v;};
+  const n3=norm(t3),n5=norm(t5),n7=norm(t7),n9=((t9-r)%12+12)%12||12;
+  if(style==='steven')    return [0,n3,n5,11,14];
+  if(style==='lofi')      return [0,n3,n5,n7,n9];
+  if(style==='piano')     return [0,n3,n5,n7];
+  if(style==='organ')     return [0,7,12,19];
+  if(style==='xylophone') return [0,n3,n5];
+  return [0,n3,n5];
+}
+function chordName(degIdx, scaleName, style) {
+  const ext={steven:'maj9',lofi:'7/9',piano:'maj7',organ:'5',xylophone:''};
+  return (ROMAN[degIdx]||'?')+(ext[style]||'');
+}
+function freqToNoteName(hz) {
+  if(hz<=0) return '—';
+  const midi=Math.round(12*Math.log2(hz/440)+69);
+  const oct=Math.floor(midi/12)-1;
+  return NOTE_NAMES[((midi%12)+12)%12]+oct;
+}
+
+// ─────────────────────────────────────────────
+// B. STATE
+// ─────────────────────────────────────────────
+const state = {
+  scale:'major', style:'lofi',
+  baseFreq:261.63, baseOct:3, vol:0.70,
+  vinyl:false, theme:'night',
+  camReady:false,
+  rawLandmarks: { L: null, R: null },
+  
+  // Motores de Bucle e Instrumentación
+  bpm: 120,
+  loopBeats: 4,
+  loopDuration: 2.0, 
+  loopStartCtxTime: 0,
+  isRecordingLoop: false,
+  loopEvents: [], 
+  radialFilterMetric: 0
+};
+
+// ─────────────────────────────────────────────
+// C. AUDIO ENGINE
+// ─────────────────────────────────────────────
+let ctx=null, masterGain=null, limiter=null, analyserNode=null, recDest=null;
+let vinylSrc=null, vinylGain=null;
+let activeVoices=new Map();
+const MAX_VOICES=14;
+
+const SYNTH={
+  steven:   {wave:'sine',    A:.02,D:.3,S:.6,R:.5,spread:2, filt:6000,gain:.18},
+  lofi:     {wave:'triangle',A:.05,D:.4,S:.5,R:.4,spread:8, filt:1200,gain:.22},
+  piano:    {wave:'triangle',A:.005,D:.8,S:.3,R:.6,spread:1,filt:8000,gain:.25},
+  organ:    {wave:'sine',    A:.02,D:.0,S:.9,R:.2,spread:0, filt:4000,gain:.16,harmonics:[1,2,3,4]},
+  xylophone:{wave:'sine',    A:.001,D:.2,S:.0,R:.1,spread:0,filt:14000,gain:.32},
+};
+
+let dynFilter=null, melodyFilter=null;
+
+function ensureAudio() {
+  if(ctx) return;
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  masterGain=ctx.createGain(); masterGain.gain.value=state.vol;
+  limiter=ctx.createDynamicsCompressor();
+  limiter.threshold.value=-3; limiter.knee.value=3;
+  limiter.ratio.value=20; limiter.attack.value=.001; limiter.release.value=.1;
+  analyserNode=ctx.createAnalyser(); analyserNode.fftSize=256;
+  recDest=ctx.createMediaStreamDestination();
+  
+  // Filtro Hemisferio Izquierdo (Acordes)
+  dynFilter=ctx.createBiquadFilter();
+  dynFilter.type='lowpass'; dynFilter.frequency.value=4000; dynFilter.Q.value=1.2;
+
+  // Filtro Hemisferio Derecho Modulado por Radio de Dedos
+  melodyFilter=ctx.createBiquadFilter();
+  melodyFilter.type='lowpass'; melodyFilter.frequency.value=3500; melodyFilter.Q.value=1.0;
+
+  masterGain.connect(limiter);
+  limiter.connect(dynFilter);
+  limiter.connect(melodyFilter);
+  
+  dynFilter.connect(analyserNode);
+  melodyFilter.connect(analyserNode);
+  
+  analyserNode.connect(ctx.destination);
+  analyserNode.connect(recDest);
+
+  const bsz=ctx.sampleRate*2, nb=ctx.createBuffer(1,bsz,ctx.sampleRate);
+  const nd=nb.getChannelData(0);
+  for(let i=0;i<bsz;i++) nd[i]=(Math.random()*2-1)*0.018;
+  vinylSrc=ctx.createBufferSource(); vinylSrc.buffer=nb; vinylSrc.loop=true;
+  const nf=ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=500; nf.Q.value=0.4;
+  vinylGain=ctx.createGain(); vinylGain.gain.value=0;
+  vinylSrc.connect(nf); nf.connect(vinylGain); vinylGain.connect(masterGain);
+  vinylSrc.start();
+  
+  updateLoopTiming();
+}
+
+function updateLoopTiming() {
+  state.loopDuration = (60 / state.bpm) * state.loopBeats;
+}
+
+function playNote(key, freq) {
+  if(!ctx) return;
+  if(activeVoices.size >= MAX_VOICES) {
+    const oldest=activeVoices.keys().next().value;
+    stopNote(oldest);
+  }
+  stopNote(key);
+  const p=SYNTH[state.style], now=ctx.currentTime, nodes=[];
+  const routeToFilter = key.startsWith('R_') ? melodyFilter : dynFilter;
+
+  (p.harmonics||[1]).forEach((h,hi)=>{
+    const osc=ctx.createOscillator();
+    const env=ctx.createGain();
+    const flt=ctx.createBiquadFilter();
+    flt.type='lowpass'; flt.frequency.value=p.filt;
+    osc.type=p.wave; osc.frequency.value=freq*h;
+    osc.detune.value=(Math.random()-.5)*p.spread*2;
+    const g=p.gain/(hi+1)/(p.harmonics||[1]).length;
+    env.gain.setValueAtTime(0,now);
+    env.gain.linearRampToValueAtTime(g,now+p.A);
+    env.gain.linearRampToValueAtTime(g*p.S,now+p.A+p.D);
+    osc.connect(env); env.connect(flt); flt.connect(routeToFilter);
+    osc.start(now); nodes.push({osc,env,flt});
+  });
+  if(state.style==='steven') {
+    const mod=ctx.createOscillator(), mg=ctx.createGain();
+    mod.frequency.value=freq*2.01; mg.gain.value=freq*0.3;
+    mod.connect(mg);
+    if(nodes[0]) mg.connect(nodes[0].osc.frequency);
+    mod.start(now); mod.stop(now+3);
+    nodes.push({osc:mod,env:mg,flt:null});
+  }
+  activeVoices.set(key,{nodes,p,g:p.gain});
+  if(vinylGain) {
+    const want=(state.vinyl&&state.style==='lofi')?0.12:0;
+    vinylGain.gain.setTargetAtTime(want,now,.1);
+  }
+}
+
+function stopNote(key) {
+  const v=activeVoices.get(key);
+  if(!v) return;
+  const now=ctx.currentTime, p=v.p;
+  v.nodes.forEach(({osc,env})=>{
+    if(!env) return;
+    try{
+      env.gain.cancelScheduledValues(now);
+      env.gain.setValueAtTime(env.gain.value,now);
+      env.gain.linearRampToValueAtTime(0,now+(p.R||.3));
+      osc.stop(now+(p.R||.3)+.05);
+    }catch(e){}
+  });
+  activeVoices.delete(key);
+}
+
+function playChord(degIdx, fingerIdx, saveToSequencer = true) {
+  const sc=SCALES[state.scale];
+  const root=sc[degIdx%sc.length];
+  const rootFreq=state.baseFreq*Math.pow(2,(root+(state.baseOct-4)*12)/12);
+  const ivals=chordIntervals(degIdx,state.scale,state.style);
+  ivals.forEach((semi,i)=>{
+    playNote(`L_${fingerIdx}_${i}`, rootFreq*Math.pow(2,semi/12));
+  });
+  if(saveToSequencer && state.isRecordingLoop) {
+    pushLoopEvent('chord', degIdx);
+  }
+}
+
+function playMelodyNote(noteIdx, fingerIdx, saveToSequencer = true) {
+  if(!ctx) return;
+  const sc=SCALES[state.scale], notesPerOct=sc.length;
+  const oct=Math.floor(noteIdx/notesPerOct), step=noteIdx%notesPerOct;
+  const semi=sc[step]+oct*12;
+  const freq=state.baseFreq*Math.pow(2,(semi+state.baseOct*12-4*12+12)/12);
+  playNote(`R_${fingerIdx}`,freq);
+  if(saveToSequencer && state.isRecordingLoop) {
+    pushLoopEvent('melody', noteIdx);
+  }
+}
+
+// ─────────────────────────────────────────────
+// SECUENCIADOR DE EVENTOS CUANTIZADOS
+// ─────────────────────────────────────────────
+function pushLoopEvent(type, value) {
+  if(!ctx || state.loopStartCtxTime === 0) return;
+  let offset = ctx.currentTime - state.loopStartCtxTime;
+  
+  const stepTime = (60 / state.bpm) / 4; 
+  offset = Math.round(offset / stepTime) * stepTime;
+  if(offset >= state.loopDuration) offset = 0;
+  
+  const exists = state.loopEvents.some(e => e.type === type && e.val === value && Math.abs(e.timeOffset - offset) < 0.02);
+  if(!exists) {
+    state.loopEvents.push({ type, val: value, timeOffset: offset, triggered: false });
+    document.getElementById('dl-btn').style.display = '';
+  }
+}
+
+function runLoopSequencerEngine() {
+  if(!ctx) return;
+  const now = ctx.currentTime;
+  if(state.loopStartCtxTime === 0) state.loopStartCtxTime = now;
+  
+  let currentOffset = now - state.loopStartCtxTime;
+  
+  // CORRECCIÓN BUG LATENTE 1: Suma exacta del ciclo para blindar el looper contra el lag (Cero Drift)
+  if(currentOffset >= state.loopDuration) {
+    state.loopStartCtxTime += state.loopDuration;
+    currentOffset = now - state.loopStartCtxTime;
+    state.loopEvents.forEach(e => e.triggered = false);
+  }
+  
+  state.loopEvents.forEach(e => {
+    if(!e.triggered && currentOffset >= e.timeOffset) {
+      e.triggered = true;
+      if(e.type === 'chord') {
+        playChord(e.val, 99, false); 
+        setTimeout(() => { for(let i=0;i<6;i++) stopNote(`L_99_${i}`); }, 1200);
+      } else if(e.type === 'melody') {
+        playMelodyNote(e.val, 99, false);
+        const targetOrb = melodyOrbs[e.val];
+        if(targetOrb) {
+          targetOrb.glow = 1.0;
+          targetOrb.lastTrigger = performance.now();
+          emitMelodyParticle(targetOrb);
+        }
+        setTimeout(() => stopNote(`R_99`), 400);
+      }
+    }
+  });
+}
+
+function modulateFromFingers(lFingers) {
+  if(!dynFilter || !ctx) return;
+  const now = ctx.currentTime;
+  if(lFingers.length) {
+    const avgY = lFingers.reduce((s,f)=>s+f.y,0)/lFingers.length;
+    const cutoff = 200 + (1-avgY) * 7800; 
+    dynFilter.frequency.setTargetAtTime(Math.max(100,Math.min(18000,cutoff)), now, 0.05);
+  }
+}
+
+// ─────────────────────────────────────────────
+// D. CANVAS SETUP
+// ─────────────────────────────────────────────
+const cvBg   = document.getElementById('canvas-bg');
+const cvMain = document.getElementById('canvas-main');
+const cvUi   = document.getElementById('canvas-ui');
+const ctxBg  = cvBg.getContext('2d');
+const ctxM   = cvMain.getContext('2d');
+const ctxUi  = cvUi.getContext('2d');
+
+let W = 0, H = 0;
+
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  [cvBg,cvMain,cvUi].forEach(c=>{c.width=W;c.height=H;});
+  buildZones();
+  buildMesh();
+  resizeScope();
+}
+window.addEventListener('resize', resize);
+
+// ─────────────────────────────────────────────
+// E. ZONE GEOMETRY (Mano Derecha Concéntrica Fija)
+// ─────────────────────────────────────────────
+let chordZones = [];   
+let melodyOrbs = [];   
+
+const CHORD_COUNT  = 16; 
+const MELODY_COUNT = 16;
+
+function buildZones() {
+  chordZones = [];
+  melodyOrbs = [];
+  const LW = W * 0.5;
+  const sc = SCALES[state.scale];
+
+  // Hemisferio Izquierdo: Matriz de Acordes
+  const ringDefs = [
+    { count:8, rRing: Math.min(LW*0.38, H*0.32), startDegIdx:0 },
+    { count:8, rRing: Math.min(LW*0.20, H*0.17), startDegIdx:8 },
+  ];
+  let zIdx = 0;
+  ringDefs.forEach(ring => {
+    for(let i=0;i<ring.count;i++) {
+      const angle = (i/ring.count)*Math.PI*2 - Math.PI/2;
+      const cx = LW*0.5 + Math.cos(angle)*ring.rRing;
+      const cy = H*0.5  + Math.sin(angle)*ring.rRing;
+      const r  = ring.rRing*0.22 + 10;
+      const degIdx = LEFT_DEGREES[zIdx % LEFT_DEGREES.length];
+      const rootHz = state.baseFreq*Math.pow(2,(sc[degIdx%sc.length]+(state.baseOct-4)*12)/12);
+      chordZones.push({
+        cx, cy, r,
+        degIdx, zIdx,
+        label: chordName(degIdx,state.scale,state.style),
+        noteFreq: rootHz,
+        animR: r,
+        animPhase: Math.random()*Math.PI*2,
+        active: false,
+        glow: 0,
+        fingerIds: new Set(),
+      });
+      zIdx++;
+    }
+  });
+
+  // Hemisferio Derecho: Arco Concéntrico Ergonómico (Memoria Muscular)
+  const centerY = H * 0.5;
+  const arcRadius = Math.min(W * 0.5 * 0.72, H * 0.40);
+
+  for(let i=0;i<MELODY_COUNT;i++){
+    const step = i % sc.length;
+    const oct  = Math.floor(i/sc.length);
+    const semi = sc[step] + oct*12;
+    const freq = state.baseFreq*Math.pow(2,(semi+state.baseOct*12-4*12+12)/12);
+
+    const sweepAngle = -Math.PI * 0.35 + (i / (MELODY_COUNT - 1)) * (Math.PI * 0.7); 
+    const cx = W - 60 - (Math.cos(sweepAngle) * arcRadius * 0.65);
+    const cy = centerY + Math.sin(sweepAngle) * arcRadius;
+
+    melodyOrbs.push({
+      cx, cy,
+      r:  13 + (oct===0 ? 4 : 0),
+      noteIdx: i,
+      label: freqToNoteName(freq).replace(/[0-9]/g,''),
+      freq,
+      x: cx, y: cy,
+      vx: 0, vy: 0, 
+      baseX: cx, baseY: cy,
+      trail: [],
+      active: false,
+      glow: 0,
+      lastTrigger: -9999,
+      fingerIds: new Set(),
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
+// F. PARTICLES
+// ─────────────────────────────────────────────
+const particles = [];
+function emitParticles(x, y, color, n=6, burst=false) {
+  for(let i=0;i<n;i++){
+    const angle = Math.random()*Math.PI*2;
+    const spd   = burst ? 2+Math.random()*4 : 0.5+Math.random()*1.5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle)*spd,
+      vy: Math.sin(angle)*spd,
+      life: 1.0,
+      decay: burst ? 0.025+Math.random()*0.025 : 0.012+Math.random()*0.012,
+      r: burst ? 3+Math.random()*4 : 2+Math.random()*3,
+      color,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
+// G. PERFORMANCE INTERACTION HAND STATE
+// ─────────────────────────────────────────────
+let handPos = { L: [], R: [] };
+const fingerState = {}; 
+
+// ─────────────────────────────────────────────
+// H. STAGE INTERACTION LOGIC & RADIAL ENGINE
+// ─────────────────────────────────────────────
+function processHandInputs() {
+  const colLeft  = '#f0c040';
+  const colRight = '#40c8f0';
+
+  // Evaluar Métrica de Radio/Apertura en Mano Derecha
+  if(state.rawLandmarks.R && melodyFilter) {
+    const lm = state.rawLandmarks.R;
+    const indexTip = lm[8];
+    if(indexTip) {
+      const otherTips = [4, 12, 16, 20];
+      let distSum = 0;
+      otherTips.forEach(id => {
+        if(lm[id]) distSum += Math.hypot(lm[id].x - indexTip.x, lm[id].y - indexTip.y);
+      });
+      const avgRadialDistance = distSum / 4; 
+      state.radialFilterMetric = avgRadialDistance;
+      
+      const baseCutoff = 250 + (avgRadialDistance * 5500);
+      const targetQ = 0.5 + ((1.0 - Math.min(1.0, avgRadialDistance * 3.5)) * 14); 
+      
+      melodyFilter.frequency.setTargetAtTime(Math.max(100, Math.min(16000, baseCutoff)), ctx.currentTime, 0.06);
+      melodyFilter.Q.setTargetAtTime(Math.max(0.5, Math.min(15, targetQ)), ctx.currentTime, 0.06);
+    }
+  }
+
+  ['L','R'].forEach(side => {
+    const fingers = handPos[side];
+    const color   = side=='L' ? colLeft : colRight;
+
+    if(!fingers.length) {
+      for(let fi=0; fi<6; fi++) {
+        const fkey = `${side}_F${fi}`;
+        const prev = fingerState[fkey];
+        if(prev !== undefined && prev >= 0) {
+          if(side==='L') {
+            for(let i=0;i<6;i++) stopNote(`L_${fi}_${i}`);
+            if(chordZones[prev]) chordZones[prev].fingerIds.delete(fi);
+          } else {
+            stopNote(`R_${fi}`);
+            if(melodyOrbs[prev]) melodyOrbs[prev].fingerIds.delete(fi);
+          }
+          fingerState[fkey] = -1;
+        }
+      }
+      return;
+    }
+
+    fingers.forEach(f => {
+      const {sx, sy, fi} = f;
+      const fkey = `${side}_F${fi}`;
+      const prev = fingerState[fkey] ?? -1;
+
+      emitParticles(sx, sy, color, 1);
+
+      if(side==='L') {
+        let best=-1, bestD=Infinity;
+        chordZones.forEach((z,i)=>{
+          const d=Math.hypot(sx-z.cx, sy-z.cy);
+          if(d < z.r*1.6 && d < bestD) { bestD=d; best=i; }
+        });
+
+        if(best !== prev) {
+          if(prev>=0) {
+            for(let i=0;i<6;i++) stopNote(`L_${fi}_${i}`);
+            chordZones[prev]?.fingerIds.delete(fi);
+          }
+          fingerState[fkey] = best;
+          if(best>=0) {
+            ensureAudio();
+            chordZones[best].fingerIds.add(fi);
+            playChord(chordZones[best].degIdx, fi);
+            document.getElementById('chord-left').textContent =
+              chordName(chordZones[best].degIdx, state.scale, state.style);
+            emitParticles(sx,sy,color,10,true);
+            if(navigator.vibrate) navigator.vibrate(15);
+          }
+        }
+      } else {
+        let best=-1, bestD=Infinity;
+        melodyOrbs.forEach((o,i)=>{
+          const d=Math.hypot(sx-o.x, sy-o.y);
+          if(d < o.r*2.6 && d < bestD) { bestD=d; best=i; }
+        });
+
+        if(best !== prev) {
+          if(prev>=0) {
+            stopNote(`R_${fi}`);
+            melodyOrbs[prev]?.fingerIds.delete(fi);
+          }
+          fingerState[fkey] = best;
+          if(best>=0) {
+            ensureAudio();
+            melodyOrbs[best].fingerIds.add(fi);
+            playMelodyNote(melodyOrbs[best].noteIdx, fi);
+            document.getElementById('chord-right').textContent = melodyOrbs[best].label;
+            melodyOrbs[best].lastTrigger = performance.now();
+            emitParticles(sx,sy,colRight,10,true);
+            if(navigator.vibrate) navigator.vibrate(12);
+          }
+        }
+      }
+    });
+  });
+
+  chordZones.forEach(z => { z.active = z.fingerIds.size > 0; });
+  melodyOrbs.forEach(o => { o.active = o.fingerIds.size > 0; });
+
+  const lScreenFingers = handPos.L.map(f=>({x:f.sx/W, y:f.sy/H}));
+  modulateFromFingers(lScreenFingers);
+}
+
+// ─────────────────────────────────────────────
+// TOUCHPAD EXPRESIVO ENGINE
+// ─────────────────────────────────────────────
+cvMain.addEventListener('pointerdown', handlePointerDown, {passive:false});
+cvMain.addEventListener('pointermove', handlePointerMove, {passive:false});
+cvMain.addEventListener('pointerup',   handlePointerEnd,  {passive:false});
+cvMain.addEventListener('pointercancel',handlePointerEnd, {passive:false});
+
+function pointerSide(x) { return x < W*0.5 ? 'L' : 'R'; }
+
+function handlePointerDown(e) {
+  e.preventDefault();
+  ensureAudio();
+  updatePointerInput(e);
+}
+function handlePointerMove(e) {
+  if(e.buttons === 0) return;
+  e.preventDefault();
+  updatePointerInput(e);
+}
+function handlePointerEnd(e) {
+  e.preventDefault();
+  // CORRECCIÓN BUG LATENTE 4: Liberación e histéresis total de notas para evitar cuelgues al soltar la pantalla
+  ['L','R'].forEach(side => {
+    const fi = 0; 
+    const fkey = `${side}_F${fi}`;
+    const prev = fingerState[fkey] ?? -1;
+    if(prev>=0) {
+      if(side==='L') {
+        for(let i=0;i<6;i++) stopNote(`L_${fi}_${i}`);
+        chordZones[prev]?.fingerIds.delete(fi);
+      } else {
+        stopNote(`R_${fi}`);
+        melodyOrbs[prev]?.fingerIds.delete(fi);
+      }
+      fingerState[fkey] = -1;
+    }
+    handPos[side] = [];
+  });
+}
+function updatePointerInput(e) {
+  const fi   = 0; 
+  const side = pointerSide(e.clientX);
+  const sx   = e.clientX, sy = e.clientY;
+  handPos[side] = [{sx, sy, fi}];
+}
+
+// ─────────────────────────────────────────────
+// I. ELASTIC POLYGON MESH
+// ─────────────────────────────────────────────
+const meshNodes   = []; 
+const meshEdges   = []; 
+const MESH_ROWS = 7, MESH_COLS = 5;
+
+function buildMesh() {
+  meshNodes.length = 0; meshEdges.length = 0;
+  const LW = W*0.5;
+  const pad = 40;
+  for(let r=0;r<MESH_ROWS;r++) {
+    for(let c=0;c<MESH_COLS;c++) {
+      const ox = pad + (LW-pad*2) * (c/(MESH_COLS-1));
+      const oy = 60 + (H-120)    * (r/(MESH_ROWS-1));
+      meshNodes.push({x:ox, y:oy, vx:0, vy:0, ox, oy});
+    }
+  }
+  for(let r=0;r<MESH_ROWS;r++) {
+    for(let c=0;c<MESH_COLS;c++) {
+      const i = r*MESH_COLS+c;
+      if(c<MESH_COLS-1) meshEdges.push([i,i+1]);
+      if(r<MESH_ROWS-1) meshEdges.push([i,i+MESH_COLS]);
+      if(c<MESH_COLS-1&&r<MESH_ROWS-1) meshEdges.push([i,i+MESH_COLS+1]);
+    }
+  }
+}
+
+function updateMesh() {
+  const allFingers = [...handPos.L];
+  const stiffness = 0.06, damping = 0.88;
+
+  meshNodes.forEach(n=>{
+    let fx = (n.ox - n.x)*stiffness;
+    let fy = (n.oy - n.y)*stiffness;
+
+    allFingers.forEach(f=>{
+      const dx = n.x - f.sx, dy = n.y - f.sy;
+      const d  = Math.hypot(dx,dy)+1;
+      if(d < 120) {
+        const force = (120-d)*(120-d)*0.0004;
+        fx += (dx/d)*force;
+        fy += (dy/d)*force;
+      }
+    });
+    
+    chordZones.forEach(z=>{
+      if(z.active) {
+        const dx=n.x-z.cx, dy=n.y-z.cy;
+        const d=Math.hypot(dx,dy)+1;
+        if(d<90) {
+          const force=(90-d)*0.0006;
+          fx+=(-dx/d)*force;
+          fy+=(-dy/d)*force;
+        }
+      }
+    });
+
+    n.vx = (n.vx + fx)*damping;
+    n.vy = (n.vy + fy)*damping;
+    n.x += n.vx;
+    n.y += n.vy;
+  });
+}
+
+// ─────────────────────────────────────────────
+// J. ORBITAL PARTICLE SYSTEM
+// ─────────────────────────────────────────────
+const MELODY_PARTICLES = [];
+const MAX_MELODY_PARTS = 60;
+
+function emitMelodyParticle(orb) {
+  if(MELODY_PARTICLES.length >= MAX_MELODY_PARTS) return;
+  const speed = 1.2 + Math.random()*1.8;
+  const angle = Math.random()*Math.PI*2;
+  MELODY_PARTICLES.push({
+    x: orb.x, y: orb.y,
+    vx: Math.cos(angle)*speed,
+    vy: Math.sin(angle)*speed,
+    life:1.0, decay:0.022+Math.random()*0.015,
+    r: 2.5+Math.random()*4,
+    orb,
+  });
+}
+
+function updateMelodyOrbs(dt) {
+  melodyOrbs.forEach((o) => {
+    o.glow = Math.max(0, o.glow - 0.03);
+    if(o.active) o.glow = Math.min(1, o.glow + 0.12);
+  });
+
+  for(let i=MELODY_PARTICLES.length-1;i>=0;i--) {
+    const p=MELODY_PARTICLES[i];
+    p.x+=p.vx; p.y+=p.vy;
+    p.vy+=0.03; 
+    p.life-=p.decay;
+    if(p.life<=0) MELODY_PARTICLES.splice(i,1);
+  }
+}
+
+// ─────────────────────────────────────────────
+// K. CAMERA MANAGEMENT
+// ─────────────────────────────────────────────
+const camVideo = document.getElementById('cam-video');
+let camStream  = null;
+let isNight    = () => document.body.dataset.theme !== 'day';
+
+// ─────────────────────────────────────────────
+// L. RENDER LOOP
+// ─────────────────────────────────────────────
+let lastRenderTs = 0;
+
+function render(ts) {
+  requestAnimationFrame(render);
+  const dt = ts - lastRenderTs;
+  lastRenderTs = ts;
+
+  runLoopSequencerEngine();
+  processHandInputs();
+  updateMesh();
+  updateMelodyOrbs(dt);
+
+  // ── BG LAYER ──
+  ctxBg.clearRect(0,0,W,H);
+  ctxBg.fillStyle = isNight() ? '#0b0c0e' : '#f0ece3';
+  ctxBg.fillRect(0,0,W,H);
+
+  if(state.camReady && camVideo.readyState>=2) {
+    ctxBg.save(); ctxBg.translate(W,0); ctxBg.scale(-1,1);
+    ctxBg.globalAlpha = isNight() ? 0.35 : 0.20; 
+    ctxBg.filter = isNight() ? 'contrast(1.15) brightness(0.85) saturate(0.70)' : 'contrast(1.05) brightness(1.02)';
+    ctxBg.drawImage(camVideo, 0, 0, W, H);
+    ctxBg.restore(); ctxBg.globalAlpha = 1; ctxBg.filter = 'none';
+  }
+
+  // Divisor Central + Barra de Progreso del Playhead del Loop
+  const divX = W*0.5;
+  ctxBg.fillStyle = isNight() ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
+  ctxBg.fillRect(divX-1, 60, 2, H-110);
+  
+  if(ctx && state.loopStartCtxTime > 0) {
+    const pct = (ctx.currentTime - state.loopStartCtxTime) / state.loopDuration;
+    if(pct >= 0 && pct <= 1) {
+      const pY = 60 + (H-110) * pct;
+      const pGrd = ctxBg.createRadialGradient(divX, pY, 1, divX, pY, 12);
+      pGrd.addColorStop(0, isNight() ? '#40c8f0' : '#006ea8');
+      pGrd.addColorStop(1, 'transparent');
+      ctxBg.fillStyle = pGrd;
+      ctxBg.beginPath(); ctxBg.arc(divX, pY, 12, 0, Math.PI*2); ctxBg.fill();
+    }
+  }
+
+  // ── MAIN LAYER ──
+  ctxM.clearRect(0,0,W,H);
+
+  // Malla Elástica Izquierda
+  const meshAlpha = isNight() ? 0.14 : 0.10;
+  ctxM.strokeStyle = isNight() ? `rgba(240,192,64,${meshAlpha})` : `rgba(184,120,0,${meshAlpha})`;
+  ctxM.lineWidth = 0.7;
+  meshEdges.forEach(([a,b])=>{
+    const na=meshNodes[a], nb=meshNodes[b];
+    ctxM.beginPath(); ctxM.moveTo(na.x,na.y); ctxM.lineTo(nb.x,nb.y); ctxM.stroke();
+  });
+
+  // Zonas de Acordes (Izquierda)
+  const tNow = ts * 0.001;
+  chordZones.forEach((z,i)=>{
+    const ring = i < 8 ? 0 : 1;
+    const pulse = z.active ? z.r*(1 + 0.13*Math.sin(tNow*9+z.animPhase)) : z.r*(0.94 + 0.06*Math.sin(tNow*1.2+z.animPhase));
+
+    if(z.active) z.glow = Math.min(1, z.glow+0.08);
+    else          z.glow = Math.max(0, z.glow-0.04);
+
+    if(z.glow > 0.01) {
+      const grd = ctxM.createRadialGradient(z.cx,z.cy,pulse*0.6, z.cx,z.cy,pulse*2.6);
+      const col = isNight() ? '240,192,64' : '184,120,0';
+      grd.addColorStop(0,`rgba(${col},${z.glow*0.35})`);
+      grd.addColorStop(1,`rgba(${col},0)`);
+      ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse*2.6,0,Math.PI*2);
+      ctxM.fillStyle=grd; ctxM.fill();
+    }
+
+    const col = isNight() ? '240,192,64' : '184,120,0';
+    ctxM.beginPath(); ctxM.arc(z.cx,z.cy,pulse,0,Math.PI*2);
+    ctxM.strokeStyle = z.active ? `rgba(${col},${0.75+z.glow*0.25})` : `rgba(${col},${0.18+ring*0.05})`;
+    ctxM.lineWidth = z.active ? 2 : 1; ctxM.stroke();
+
+    if(z.active) { ctxM.fillStyle = `rgba(${col},0.10)`; ctxM.fill(); }
+    const labelAlpha = z.active ? 1.0 : 0.40 - ring*0.10;
+    ctxM.font = `${z.active?700:500} ${z.active?13:11}px 'Syne', sans-serif`;
+    ctxM.fillStyle = `rgba(${col},${labelAlpha})`;
+    ctxM.textAlign = 'center'; ctxM.textBaseline = 'middle';
+    ctxM.fillText(z.label, z.cx, z.cy);
+  });
+
+  // Nodos Fijos de Melodía (Derecha)
+  melodyOrbs.forEach(o=>{
+    const pulse = o.active ? o.r*(1+0.15*Math.sin(tNow*11)) : o.r*(0.93+0.07*Math.sin(tNow*1.4+(o.noteIdx*0.4)));
+    const colR = isNight() ? '64,200,240' : '0,110,168';
+
+    if(o.glow > 0.01) {
+      const grd=ctxM.createRadialGradient(o.cx,o.cy,pulse*0.4,o.cx,o.cy,pulse*3.0);
+      grd.addColorStop(0,`rgba(${colR},${o.glow*0.38})`); grd.addColorStop(1,`rgba(${colR},0)`);
+      ctxM.beginPath(); ctxM.arc(o.cx,o.cy,pulse*3.0,0,Math.PI*2); ctxM.fillStyle=grd; ctxM.fill();
+    }
+
+    ctxM.beginPath(); ctxM.arc(o.cx,o.cy,pulse,0,Math.PI*2);
+    ctxM.strokeStyle=`rgba(${colR},${o.active?0.9:0.28+o.glow*0.3})`;
+    ctxM.lineWidth=o.active?2:1; ctxM.stroke();
+    if(o.active || o.glow>0.1) {
+      ctxM.fillStyle=`rgba(${colR},${(o.active?0.18:0.07)+o.glow*0.10})`; ctxM.fill();
+    }
+    ctxM.font=`${o.active?700:400} ${o.active?12:10}px 'DM Mono',monospace`;
+    ctxM.fillStyle=`rgba(${colR},${o.active?1.0:0.50+o.glow*0.3})`;
+    ctxM.textAlign='center'; ctxM.textBaseline='middle'; ctxM.fillText(o.label,o.cx,o.cy);
+  });
+
+  // Partículas de Melodía
+  MELODY_PARTICLES.forEach(p=>{
+    const colR = isNight() ? '64,200,240' : '0,110,168';
+    ctxM.beginPath(); ctxM.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    ctxM.fillStyle=`rgba(${colR},${p.life*0.6})`;
+    if(isNight()) { ctxM.shadowColor=`rgba(${colR},0.7)`; ctxM.shadowBlur=p.r*2.5; }
+    ctxM.fill(); ctxM.shadowBlur=0;
+  });
+
+  for(let i=particles.length-1;i>=0;i--) {
+    const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.life-=p.decay;
+    if(p.life<=0) { particles.splice(i,1); continue; }
+    ctxM.beginPath(); ctxM.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    ctxM.fillStyle=p.color+Math.round(p.life*255).toString(16).padStart(2,'0');
+    if(isNight()) { ctxM.shadowColor=p.color; ctxM.shadowBlur=p.r*3; }
+    ctxM.fill(); ctxM.shadowBlur=0;
+  }
+
+  // ── CYBER-SKELETON (Rastreo Óptico de Bajo Consumo) ──
+  const HAND_BONES = [
+    [0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8],
+    [0,9], [9,10], [10,11], [11,12], [0,13], [13,14], [14,15], [15,16],
+    [0,17], [17,18], [18,19], [19,20], [5,9], [9,13], [13,17]
+  ];
+
+  ['L','R'].forEach(side => {
+    const lm = state.rawLandmarks[side];
+    if(lm) {
+      const colBase = side === 'L' ? (isNight() ? '#f0c040' : '#b87800') : (isNight() ? '#40c8f0' : '#006ea8');
+      ctxM.save(); ctxM.strokeStyle = colBase; ctxM.lineWidth = 1.6;
+
+      HAND_BONES.forEach(([bA, bB]) => {
+        const ptA = lm[bA]; const ptB = lm[bB];
+        if(ptA && ptB) {
+          ctxM.beginPath(); ctxM.moveTo((1 - ptA.x) * W, ptA.y * H); ctxM.lineTo((1 - ptB.x) * W, ptB.y * H);
+          ctxM.globalAlpha = 0.18; ctxM.stroke();
+        }
+      });
+
+      ctxM.globalAlpha = 0.35; ctxM.fillStyle = colBase;
+      for(let n = 1; n < 21; n++) {
+        if([4, 8, 12, 16, 20].includes(n)) continue; 
+        const pt = lm[n]; ctxM.beginPath(); ctxM.arc((1 - pt.x) * W, pt.y * H, 2.2, 0, Math.PI * 2); ctxM.fill();
+      }
+      ctxM.restore();
+
+      if(side === 'R' && lm[8]) {
+        const ix = (1 - lm[8].x) * W, iy = lm[8].y * H;
+        const visualRadius = 15 + (state.radialFilterMetric * 380);
+        ctxM.beginPath(); ctxM.arc(ix, iy, visualRadius, 0, Math.PI * 2);
+        ctxM.strokeStyle = colBase; ctxM.lineWidth = 0.8; ctxM.globalAlpha = 0.3; ctxM.stroke();
+      }
+    }
+  });
+
+  // Retículas del Touchpad / Dedos
+  ['L','R'].forEach(side=>{
+    const col = side==='L' ? (isNight()?'#f0c040':'#b87800') : (isNight()?'#40c8f0':'#006ea8');
+    handPos[side].forEach(f=>{
+      ctxM.beginPath(); ctxM.arc(f.sx, f.sy, 13 + 3*Math.sin(ts*0.012), 0, Math.PI*2);
+      ctxM.strokeStyle = col; ctxM.lineWidth = 0.9; ctxM.stroke();
+
+      ctxM.beginPath(); ctxM.arc(f.sx, f.sy, 6, 0, Math.PI*2); ctxM.fillStyle=col;
+      if(isNight()) { ctxM.shadowColor=col; ctxM.shadowBlur=14; }
+      ctxM.fill(); ctxM.shadowBlur=0;
+    });
+  });
+
+  // ── UI OVERLAY ──
+  ctxUi.clearRect(0,0,W,H);
+  if(W > 600) {
+    const cx = W*0.5; ctxUi.save(); ctxUi.textAlign='center'; ctxUi.textBaseline='top';
+    ctxUi.font=`700 9px 'DM Mono', monospace`;
+    ctxUi.fillStyle = isNight() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
+    ctxUi.letterSpacing='0.15em';
+    ctxUi.fillText('HARMONIZER LOOPER', cx-W*0.18, H*0.5); 
+    ctxUi.fillText('CONCENTRIC MELODIST', cx+W*0.18, H*0.5);
+    ctxUi.restore();
+  }
+  drawScope();
+}
+
+// ─────────────────────────────────────────────
+// M. OSCILLOSCOPE
+// ─────────────────────────────────────────────
+const scopeCanvas = document.getElementById('scope');
+const scopeCtx    = scopeCanvas.getContext('2d');
+function resizeScope() {
+  const wrap = document.getElementById('scope-wrap');
+  if(wrap) { scopeCanvas.width = wrap.clientWidth; scopeCanvas.height = wrap.clientHeight; }
+}
+
+function drawScope() {
+  const SW=scopeCanvas.width, SH=scopeCanvas.height;
+  scopeCtx.clearRect(0,0,SW,SH);
+  if(!analyserNode) return;
+  const buf=new Uint8Array(analyserNode.frequencyBinCount);
+  analyserNode.getByteTimeDomainData(buf);
+  scopeCtx.strokeStyle=document.body.dataset.theme==='day'?'#b87800':'#40c8f0';
+  scopeCtx.lineWidth=1.5; scopeCtx.beginPath();
+  const sw=SW/buf.length;
+  for(let i=0;i<buf.length;i++){
+    const y=(buf[i]/128)*SH/2;
+    i===0?scopeCtx.moveTo(0,y):scopeCtx.lineTo(i*sw,y);
+  }
+  scopeCtx.stroke();
+  let sum=0; buf.forEach(v=>sum+=Math.abs(v-128));
+  const rms=Math.min((sum/buf.length/128)*200,100);
+  document.getElementById('vu-fill').style.width=rms+'%';
+}
+
+// ─────────────────────────────────────────────
+// N. MEDIAPIPE HANDS
+// ─────────────────────────────────────────────
+let lastFrameTime=0;
+const TARGET_FPS=20, FRAME_MS=1000/TARGET_FPS; 
+
+function initMediaPipe() {
+  if(!window.Hands) { setCamStatus('err','NO MP'); return; }
+  
+  // CORRECCIÓN: Forzar descarga desde CDN fijado de forma absoluta para evitar assets colgados en GH-Pages
+  const hands=new Hands({ locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675459673/${f}` });
+  hands.setOptions({ maxNumHands:2, modelComplexity:0, minDetectionConfidence:.45, minTrackingConfidence:.45 });
+  hands.onResults(onHandResults);
+
+  navigator.mediaDevices.getUserMedia({
+    video:{facingMode:'user',width:{ideal:320},height:{ideal:240}}, audio:false
+  }).then(stream=>{
+    camStream=stream; camVideo.srcObject=stream; setCamStatus('wait','LOADING');
+    async function loop(ts) {
+      requestAnimationFrame(loop);
+      if(ts-lastFrameTime<FRAME_MS) return;
+      lastFrameTime=ts;
+      if(camVideo.readyState>=2) { try{ await hands.send({image:camVideo}); }catch(e){} }
+    }
+    camVideo.addEventListener('loadeddata',()=>{
+      state.camReady=true; setCamStatus('ok','CAM'); requestAnimationFrame(loop);
+    });
+  }).catch(err=>{ setCamStatus('err','NO CAM'); });
+}
+
+function setCamStatus(type,text){
+  document.getElementById('cam-dot').className='cam-dot '+type;
+  document.getElementById('cam-label').textContent=text;
+}
+
+function onHandResults(results) {
+  handPos.L=[]; handPos.R=[];
+  state.rawLandmarks.L = null; state.rawLandmarks.R = null;
+
+  if(!results.multiHandLandmarks?.length) {
+    document.body.classList.remove('hands-active');
+    return;
+  }
+
+  document.body.classList.add('hands-active');
+
+  results.multiHandLandmarks.forEach((lm, i) => {
+    const indexTip = lm[8]; 
+    if(indexTip) {
+      const screenX = (1 - indexTip.x) * W;
+      const screenY = indexTip.y * H;
+      
+      // CORRECCIÓN BUG LATENTE 2: Clasificación infalible basada en Hemisferio Espacial (Previene inversiones de espejo)
+      const side = screenX < W * 0.5 ? 'L' : 'R';
+      
+      state.rawLandmarks[side] = lm;
+      handPos[side].push({ sx: screenX, sy: screenY, fi: i });
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// O. RECORDING ENGINE (Loops)
+// ─────────────────────────────────────────────
+const recBtn=document.getElementById('rec-btn');
+const dlBtn=document.getElementById('dl-btn');
+const recTimer=document.getElementById('rec-timer');
+
+recBtn.addEventListener('click',()=>{
+  ensureAudio();
+  if(state.isRecordingLoop) {
+    state.isRecordingLoop = false;
+    recBtn.textContent = '⏺ LOOP REC';
+    recBtn.classList.remove('rec-on');
+    recTimer.textContent = '';
+    showToast('Loop record complete ✓');
+  } else {
+    state.isRecordingLoop = true;
+    recBtn.textContent = '⏹ END LOOP';
+    recBtn.classList.add('rec-on');
+    recTimer.textContent = 'REC';
+    showToast('Recording to loop timeline...');
+  }
+});
+
+dlBtn.addEventListener('click',()=>{
+  state.loopEvents = [];
+  dlBtn.style.display = 'none';
+  showToast('Loop cleared ❌');
+});
+
+// ─────────────────────────────────────────────
+// P. CONTROLS & INTERFACE
+// ─────────────────────────────────────────────
+let isMuted=false;
+document.getElementById('mute-btn').addEventListener('click',()=>{
+  ensureAudio(); isMuted=!isMuted;
+  masterGain.gain.setTargetAtTime(isMuted?0:state.vol,ctx.currentTime,.06);
+  const btn=document.getElementById('mute-btn'); btn.textContent=isMuted?'🔇':'VOL'; btn.classList.toggle('on',isMuted);
+});
+
+document.getElementById('scale-sel').addEventListener('change',e=>{
+  state.scale=e.target.value; buildZones(); buildMesh(); showToast('Scale: '+e.target.value);
+});
+document.getElementById('style-sel').addEventListener('change',e=>{
+  state.style=e.target.value; showToast('Timbre: '+e.target.value);
+});
+document.getElementById('bpm-sel').addEventListener('change',e=>{
+  state.bpm=parseInt(e.target.value); updateLoopTiming(); showToast('Tempo: '+e.target.value+' BPM');
+});
+
+const themeBtn=document.getElementById('theme-btn');
+themeBtn.addEventListener('click',()=>{
+  state.theme=state.theme==='night'?'day':'night'; document.body.dataset.theme=state.theme;
+  themeBtn.textContent=state.theme==='night'?'☀':'🌙';
+});
+
+document.getElementById('freq-btn').addEventListener('click',()=>{ ensureAudio(); document.getElementById('freq-modal').classList.add('open'); });
+document.getElementById('freq-close').addEventListener('click',()=>{ document.getElementById('freq-modal').classList.remove('open'); });
+document.getElementById('freq-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('freq-modal')) document.getElementById('freq-modal').classList.remove('open'); });
+
+function updateSliderPct(el){ const pct=((el.value-el.min)/(el.max-el.min)*100).toFixed(1)+'%'; el.style.setProperty('--pct',pct); }
+const freqSl=document.getElementById('freq-sl'); const volSl=document.getElementById('vol-sl'); const octSl=document.getElementById('oct-sl');
+
+freqSl.addEventListener('input',()=>{
+  state.baseFreq=parseFloat(freqSl.value); document.getElementById('freq-disp').textContent=`${freqSl.value} Hz — ${freqToNoteName(state.baseFreq)}`;
+  updateSliderPct(freqSl); buildZones();
+});
+volSl.addEventListener('input',()=>{
+  state.vol=parseInt(volSl.value)/100; document.getElementById('vol-disp').textContent=volSl.value+'%';
+  if(masterGain&&!isMuted) masterGain.gain.setTargetAtTime(state.vol,ctx.currentTime,.05);
+  updateSliderPct(volSl);
+});
+octSl.addEventListener('input',()=>{
+  state.baseOct=parseInt(octSl.value); document.getElementById('oct-disp').textContent='Octave '+octSl.value;
+  updateSliderPct(octSl); buildZones();
+});
+document.getElementById('vinyl-chk').addEventListener('change',e=>{ state.vinyl=e.target.checked; });
+[freqSl,volSl,octSl].forEach(updateSliderPct);
+
+// ─────────────────────────────────────────────
+// Q. TOAST SYSTEM
+// ─────────────────────────────────────────────
+let toastT=null;
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ─────────────────────────────────────────────
+// R. BOOT ENGINE
+// ─────────────────────────────────────────────
+['click','touchstart','keydown'].forEach(ev=>{
+  document.addEventListener(ev,()=>{ ensureAudio(); if(ctx?.state==='suspended') ctx.resume(); },{once:true,passive:true});
+});
+
+window.addEventListener('load',()=>{
+  resize();
+  requestAnimationFrame(render);
+  setTimeout(initMediaPipe, 600);
+  showToast('MIXTURA V6 FIJADA & EN LÍNEA');
+});
+</script>
+</body>
+</html>
