@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SOUNDGO · MIXTURA V6 (Stage Looper Edition)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght=0,300;0,400;0,500;1,300&family=Syne:wght=700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&amp;family=Syne:wght@700;800&amp;display=swap" rel="stylesheet">
 <style>
 /* ───────────────────────────────────────
    DESIGN TOKENS — Night / Day
@@ -274,7 +274,7 @@ input[type=range]::-moz-range-thumb {
 body.hands-active #zone-label-l,
 body.hands-active #zone-label-r { opacity: 0; }
 
-#cam-video { position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; }
+#cam-video { position:fixed; top:-9999px; left:-9999px; width:320px; height:240px; }
 </style>
 </head>
 <body data-theme="night">
@@ -283,7 +283,7 @@ body.hands-active #zone-label-r { opacity: 0; }
 <canvas id="canvas-main"></canvas>
 <canvas id="canvas-ui"></canvas>
 
-<video id="cam-video" autoplay playsinline muted></video>
+<video id="cam-video" width="320" height="240" autoplay playsinline muted></video>
 
 <header id="hud">
   <div id="wordmark">SOUND<em>GO</em> · MIXTURA <span style="font-size:10px; font-weight:400; opacity:0.5; font-family:'DM Mono'">[LOOP STAGE V6]</span></div>
@@ -382,8 +382,8 @@ body.hands-active #zone-label-r { opacity: 0; }
 
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675459673/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675459673/hands.js" crossorigin="anonymous"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
@@ -431,7 +431,7 @@ function freqToNoteName(hz) {
 }
 
 // ─────────────────────────────────────────────
-// B. STATE (Con extensiones de Secuenciador de Loops)
+// B. STATE
 // ─────────────────────────────────────────────
 const state = {
   scale:'major', style:'lofi',
@@ -440,7 +440,7 @@ const state = {
   camReady:false,
   rawLandmarks: { L: null, R: null },
   
-  // Motores de Bucle e Instrumentación Fija
+  // Motores de Bucle e Instrumentación
   bpm: 120,
   loopBeats: 4,
   loopDuration: 2.0, 
@@ -599,12 +599,10 @@ function pushLoopEvent(type, value) {
   if(!ctx || state.loopStartCtxTime === 0) return;
   let offset = ctx.currentTime - state.loopStartCtxTime;
   
-  // Cuantización fina a semicorcheas (1/16) para corregir retrasos de cámara lenta
   const stepTime = (60 / state.bpm) / 4; 
   offset = Math.round(offset / stepTime) * stepTime;
   if(offset >= state.loopDuration) offset = 0;
   
-  // Evitar duplicación idéntica en el mismo pulso exacto
   const exists = state.loopEvents.some(e => e.type === type && e.val === value && Math.abs(e.timeOffset - offset) < 0.02);
   if(!exists) {
     state.loopEvents.push({ type, val: value, timeOffset: offset, triggered: false });
@@ -617,19 +615,20 @@ function runLoopSequencerEngine() {
   const now = ctx.currentTime;
   if(state.loopStartCtxTime === 0) state.loopStartCtxTime = now;
   
-  const currentOffset = now - state.loopStartCtxTime;
+  let currentOffset = now - state.loopStartCtxTime;
   
+  // CORRECCIÓN BUG LATENTE 1: Suma exacta del ciclo para blindar el looper contra el lag (Cero Drift)
   if(currentOffset >= state.loopDuration) {
-    state.loopStartCtxTime = now;
+    state.loopStartCtxTime += state.loopDuration;
+    currentOffset = now - state.loopStartCtxTime;
     state.loopEvents.forEach(e => e.triggered = false);
-    return;
   }
   
   state.loopEvents.forEach(e => {
     if(!e.triggered && currentOffset >= e.timeOffset) {
       e.triggered = true;
       if(e.type === 'chord') {
-        playChord(e.val, 99, false); // Canal 99 exclusivo para loop playback
+        playChord(e.val, 99, false); 
         setTimeout(() => { for(let i=0;i<6;i++) stopNote(`L_99_${i}`); }, 1200);
       } else if(e.type === 'melody') {
         playMelodyNote(e.val, 99, false);
@@ -721,10 +720,8 @@ function buildZones() {
   });
 
   // Hemisferio Derecho: Arco Concéntrico Ergonómico (Memoria Muscular)
-  const RX0 = W * 0.5;
-  const RW  = W * 0.5;
   const centerY = H * 0.5;
-  const arcRadius = Math.min(RW * 0.72, H * 0.40);
+  const arcRadius = Math.min(W * 0.5 * 0.72, H * 0.40);
 
   for(let i=0;i<MELODY_COUNT;i++){
     const step = i % sc.length;
@@ -732,7 +729,6 @@ function buildZones() {
     const semi = sc[step] + oct*12;
     const freq = state.baseFreq*Math.pow(2,(semi+state.baseOct*12-4*12+12)/12);
 
-    // Mapeo en arco semicircular abierto hacia el centro de la pantalla
     const sweepAngle = -Math.PI * 0.35 + (i / (MELODY_COUNT - 1)) * (Math.PI * 0.7); 
     const cx = W - 60 - (Math.cos(sweepAngle) * arcRadius * 0.65);
     const cy = centerY + Math.sin(sweepAngle) * arcRadius;
@@ -744,7 +740,7 @@ function buildZones() {
       label: freqToNoteName(freq).replace(/[0-9]/g,''),
       freq,
       x: cx, y: cy,
-      vx: 0, vy: 0, // Posición fija absoluta
+      vx: 0, vy: 0, 
       baseX: cx, baseY: cy,
       trail: [],
       active: false,
@@ -778,9 +774,8 @@ function emitParticles(x, y, color, n=6, burst=false) {
 // ─────────────────────────────────────────────
 // G. PERFORMANCE INTERACTION HAND STATE
 // ─────────────────────────────────────────────
-const handPos = { L: [], R: [] };
+let handPos = { L: [], R: [] };
 const fingerState = {}; 
-const FINGERTIP_IDS = [8]; 
 
 // ─────────────────────────────────────────────
 // H. STAGE INTERACTION LOGIC & RADIAL ENGINE
@@ -794,18 +789,16 @@ function processHandInputs() {
     const lm = state.rawLandmarks.R;
     const indexTip = lm[8];
     if(indexTip) {
-      // Calcular distancia promedio de puntas externas (Pulgar, Medio, Anular, Meñique) respecto al Índice
       const otherTips = [4, 12, 16, 20];
       let distSum = 0;
       otherTips.forEach(id => {
         if(lm[id]) distSum += Math.hypot(lm[id].x - indexTip.x, lm[id].y - indexTip.y);
       });
-      const avgRadialDistance = distSum / 4; // Rango estimado: 0.05 (mano cerrada) a 0.28 (mano extendida)
+      const avgRadialDistance = distSum / 4; 
       state.radialFilterMetric = avgRadialDistance;
       
-      // Aplicación en filtros dinámicos directos
       const baseCutoff = 250 + (avgRadialDistance * 5500);
-      const targetQ = 0.5 + ((1.0 - Math.min(1.0, avgRadialDistance * 3.5)) * 14); // Cerrar dedos aumenta resonancia "acid"
+      const targetQ = 0.5 + ((1.0 - Math.min(1.0, avgRadialDistance * 3.5)) * 14); 
       
       melodyFilter.frequency.setTargetAtTime(Math.max(100, Math.min(16000, baseCutoff)), ctx.currentTime, 0.06);
       melodyFilter.Q.setTargetAtTime(Math.max(0.5, Math.min(15, targetQ)), ctx.currentTime, 0.06);
@@ -814,7 +807,7 @@ function processHandInputs() {
 
   ['L','R'].forEach(side => {
     const fingers = handPos[side];
-    const color   = side==='L' ? colLeft : colRight;
+    const color   = side=='L' ? colLeft : colRight;
 
     if(!fingers.length) {
       for(let fi=0; fi<6; fi++) {
@@ -865,7 +858,6 @@ function processHandInputs() {
           }
         }
       } else {
-        // Mano derecha apunta e impacta directamente el arco fijo
         let best=-1, bestD=Infinity;
         melodyOrbs.forEach((o,i)=>{
           const d=Math.hypot(sx-o.x, sy-o.y);
@@ -900,7 +892,7 @@ function processHandInputs() {
 }
 
 // ─────────────────────────────────────────────
-// TOUCHPAD EXPRESIVO ENGINE (Superficie Táctil Unificada)
+// TOUCHPAD EXPRESIVO ENGINE
 // ─────────────────────────────────────────────
 cvMain.addEventListener('pointerdown', handlePointerDown, {passive:false});
 cvMain.addEventListener('pointermove', handlePointerMove, {passive:false});
@@ -921,21 +913,23 @@ function handlePointerMove(e) {
 }
 function handlePointerEnd(e) {
   e.preventDefault();
-  const side = pointerSide(e.clientX);
-  const fi = 0; 
-  const fkey = `${side}_F${fi}`;
-  const prev = fingerState[fkey] ?? -1;
-  if(prev>=0) {
-    if(side==='L') {
-      for(let i=0;i<6;i++) stopNote(`L_${fi}_${i}`);
-      chordZones[prev]?.fingerIds.delete(fi);
-    } else {
-      stopNote(`R_${fi}`);
-      melodyOrbs[prev]?.fingerIds.delete(fi);
+  // CORRECCIÓN BUG LATENTE 4: Liberación e histéresis total de notas para evitar cuelgues al soltar la pantalla
+  ['L','R'].forEach(side => {
+    const fi = 0; 
+    const fkey = `${side}_F${fi}`;
+    const prev = fingerState[fkey] ?? -1;
+    if(prev>=0) {
+      if(side==='L') {
+        for(let i=0;i<6;i++) stopNote(`L_${fi}_${i}`);
+        chordZones[prev]?.fingerIds.delete(fi);
+      } else {
+        stopNote(`R_${fi}`);
+        melodyOrbs[prev]?.fingerIds.delete(fi);
+      }
+      fingerState[fkey] = -1;
     }
-    fingerState[fkey] = -1;
-  }
-  handPos[side] = [];
+    handPos[side] = [];
+  });
 }
 function updatePointerInput(e) {
   const fi   = 0; 
@@ -1061,9 +1055,7 @@ function render(ts) {
   const dt = ts - lastRenderTs;
   lastRenderTs = ts;
 
-  // Correr secuenciador MIDI cíclico en tiempo real
   runLoopSequencerEngine();
-
   processHandInputs();
   updateMesh();
   updateMelodyOrbs(dt);
@@ -1081,7 +1073,7 @@ function render(ts) {
     ctxBg.restore(); ctxBg.globalAlpha = 1; ctxBg.filter = 'none';
   }
 
-  // Divisor Neón Central + Barra de Progreso del Playhead del Loop
+  // Divisor Central + Barra de Progreso del Playhead del Loop
   const divX = W*0.5;
   ctxBg.fillStyle = isNight() ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
   ctxBg.fillRect(divX-1, 60, 2, H-110);
@@ -1181,7 +1173,7 @@ function render(ts) {
     ctxM.fill(); ctxM.shadowBlur=0;
   }
 
-  // ── CYBER-SKELETON (Rastreo Estético Optimizando CPU) ──
+  // ── CYBER-SKELETON (Rastreo Óptico de Bajo Consumo) ──
   const HAND_BONES = [
     [0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8],
     [0,9], [9,10], [10,11], [11,12], [0,13], [13,14], [14,15], [15,16],
@@ -1209,7 +1201,6 @@ function render(ts) {
       }
       ctxM.restore();
 
-      // Indicador de Anillo de Radio Expresivo (Mano Derecha)
       if(side === 'R' && lm[8]) {
         const ix = (1 - lm[8].x) * W, iy = lm[8].y * H;
         const visualRadius = 15 + (state.radialFilterMetric * 380);
@@ -1219,7 +1210,7 @@ function render(ts) {
     }
   });
 
-  // Retículas de colisión táctil/cámara unificadas
+  // Retículas del Touchpad / Dedos
   ['L','R'].forEach(side=>{
     const col = side==='L' ? (isNight()?'#f0c040':'#b87800') : (isNight()?'#40c8f0':'#006ea8');
     handPos[side].forEach(f=>{
@@ -1279,11 +1270,13 @@ function drawScope() {
 // N. MEDIAPIPE HANDS
 // ─────────────────────────────────────────────
 let lastFrameTime=0;
-const TARGET_FPS=20, FRAME_MS=1000/TARGET_FPS; // FPS equilibrado para cámaras lentas
+const TARGET_FPS=20, FRAME_MS=1000/TARGET_FPS; 
 
 function initMediaPipe() {
   if(!window.Hands) { setCamStatus('err','NO MP'); return; }
-  const hands=new Hands({ locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  
+  // CORRECCIÓN: Forzar descarga desde CDN fijado de forma absoluta para evitar assets colgados en GH-Pages
+  const hands=new Hands({ locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675459673/${f}` });
   hands.setOptions({ maxNumHands:2, modelComplexity:0, minDetectionConfidence:.45, minTrackingConfidence:.45 });
   hands.onResults(onHandResults);
 
@@ -1318,26 +1311,24 @@ function onHandResults(results) {
   }
 
   document.body.classList.add('hands-active');
-  const handMap={};
-  results.multiHandLandmarks.forEach((lm,i)=>{
-    const mpLabel=results.multiHandedness?.[i]?.label||'Right';
-    const side=mpLabel==='Left'?'R':'L'; handMap[side]=lm;
-  });
 
-  state.rawLandmarks.L = handMap['L'] || null;
-  state.rawLandmarks.R = handMap['R'] || null;
-
-  ['L','R'].forEach(side=>{
-    const lm=handMap[side]; if(!lm) return;
-    const indexTip = lm[8]; // Seguimiento centrado en la punta del índice
+  results.multiHandLandmarks.forEach((lm, i) => {
+    const indexTip = lm[8]; 
     if(indexTip) {
-      handPos[side].push({ sx:(1-indexTip.x)*W, sy:indexTip.y*H, fi:0 });
+      const screenX = (1 - indexTip.x) * W;
+      const screenY = indexTip.y * H;
+      
+      // CORRECCIÓN BUG LATENTE 2: Clasificación infalible basada en Hemisferio Espacial (Previene inversiones de espejo)
+      const side = screenX < W * 0.5 ? 'L' : 'R';
+      
+      state.rawLandmarks[side] = lm;
+      handPos[side].push({ sx: screenX, sy: screenY, fi: i });
     }
   });
 }
 
 // ─────────────────────────────────────────────
-// O. RECORDING ENGINE (Evolución a Secuenciador de Loops MIDI)
+// O. RECORDING ENGINE (Loops)
 // ─────────────────────────────────────────────
 const recBtn=document.getElementById('rec-btn');
 const dlBtn=document.getElementById('dl-btn');
@@ -1435,7 +1426,7 @@ window.addEventListener('load',()=>{
   resize();
   requestAnimationFrame(render);
   setTimeout(initMediaPipe, 600);
-  showToast('MIXTURA V6 LOOPER READY');
+  showToast('MIXTURA V6 FIJADA & EN LÍNEA');
 });
 </script>
 </body>
