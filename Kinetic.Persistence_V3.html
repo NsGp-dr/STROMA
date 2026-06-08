@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STROMA · MANIFOLD V5 (Performance & Recording Edition)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESIGN SYSTEM SYSTEM — Estética Cyber-Laboratorio Unificada
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0b0c0e;
+  --surface:   #13161a;
+  --surface2:  #1c2029;
+  --border:    #2a2f3a;
+  --text:      #e8eaf0;
+  --text-dim:  #5a6070;
+  --text-mid:  #9aa0b0;
+  
+  --left:      #f0c040;   /* Acordes - Amber */
+  --left-glow: rgba(240,192,64,0.5);
+  --left-dim:  rgba(240,192,64,0.12);
+  
+  --right:     #40c8f0;   /* Melodía - Sky Cyan */
+  --right-glow:rgba(64,200,240,0.5);
+  --right-dim: rgba(64,200,240,0.12);
+  
+  --rec:       #ff3b30;   /* Estado de Grabación */
+}
+
+/* Modo Día Alternativo de V5 */
+:root.day-mode {
+  --bg:        #f4f6f9;
+  --surface:   #ffffff;
+  --surface2:  #edf1f5;
+  --border:    #d2d9e1;
+  --text:      #1a202c;
+  --text-dim:  #a0aec0;
+  --text-mid:  #4a5568;
+  --left-glow: rgba(220,160,20,0.3);
+  --right-glow:rgba(20,150,200,0.3);
+}
+
+* { box-sizing: border-box; margin:0; padding:0; user-select:none; -webkit-user-select:none; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'DM Mono', monospace; overflow: hidden; height: 100vh; width:100vw;
+}
+
+/* Layout Estructural */
+#canvas-container { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5; }
+canvas { position: absolute; top:0; left:0; width:100%; height:100%; }
+
+/* Paneles HUD de Control */
+.hud {
+  position: absolute; left:0; width:100%; height:52px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+}
+.hud-top { top:0; }
+.hud-bottom { bottom:0; top:auto; border-bottom:none; border-top: 1px solid var(--border); height: 44px; }
+
+.brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.02em; color: var(--text); }
+.brand span { color: var(--right); font-size: 10px; font-family: 'DM Mono'; font-weight: 400; margin-left: 6px; border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; }
+
+.group { display: flex; align-items: center; gap: 16px; }
+.label { font-size: 11px; color: var(--text-mid); }
+.value { font-size: 11px; font-weight: 500; color: var(--text); }
+
+/* Componentes Interactivos */
+.control-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  padding: 6px 14px; font-family: 'DM Mono'; font-size: 11px; font-weight: 500;
+  border-radius: 4px; cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; gap: 6px;
+}
+.control-btn:hover { border-color: var(--text-mid); background: var(--border); }
+.control-btn.active { background: var(--right-dim); border-color: var(--right); color: var(--right); }
+
+/* Botón de grabación dinámico */
+.control-btn.rec-active {
+  background: rgba(255, 59, 48, 0.15); border-color: var(--rec); color: var(--rec);
+  animation: pulse-rec 1.5s infinite ease-in-out;
+}
+@keyframes pulse-rec {
+  0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; }
+}
+
+.slider-wrapper { display: flex; align-items: center; gap: 8px; }
+input[type=range] {
+  -webkit-appearance: none; width: 90px; background: transparent; cursor: pointer;
+}
+input[type=range]:focus { outline: none; }
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%; height: 4px; background: var(--border); border-radius: 2px;
+}
+input[type=range]::-webkit-slider-thumb {
+  height: 12px; width: 12px; border-radius: 50%; background: var(--text-mid); -webkit-appearance: none; margin-top: -4px;
+}
+
+/* Lente de Captura Tracking */
+#cam-container {
+  position: absolute; bottom: 60px; left: 24px; width: 140px; height: 105px;
+  border-radius: 6px; border: 1px solid var(--border); overflow: hidden;
+  background: #000; z-index: 30; transform: scaleX(-1); opacity: 0.35; transition: opacity 0.2s;
+}
+#cam-container:hover { opacity: 0.8; }
+#webcam { width:100%; height:100%; object-fit: cover; }
+
+#toast {
+  position: absolute; top: 68px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  padding: 8px 16px; font-size: 11px; border-radius: 4px; pointer-events: none;
+  opacity: 0; transition: opacity 0.2s ease; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+#toast.show { opacity: 1; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="toast">Inicializando Manifold...</div>
+
+<div class="hud hud-top">
+  <div class="brand">STROMA <span>MANIFOLD V5</span></div>
+  <div class="group">
+    <button id="btn-record" class="control-btn"><span style="font-size:8px;">🔴</span> REC</button>
+    
+    <div class="slider-wrapper">
+      <span class="label">SCALE:</span>
+      <select id="scale-select" class="control-btn" style="padding: 4px 8px;"></select>
+    </div>
+    <button id="btn-theme" class="control-btn">THEME</button>
+    <button id="btn-audio" class="control-btn active">AUDIO ON</button>
+  </div>
+</div>
+
+<div id="canvas-container">
+  <canvas id="canvas-bg"></canvas>
+  <canvas id="canvas-ui"></canvas>
+</div>
+
+<div id="cam-container">
+  <video id="webcam" autoplay playsinline muted></video>
+</div>
+
+<div class="hud hud-bottom">
+  <div class="group">
+    <div class="slider-wrapper">
+      <span class="label">OCTAVE:</span>
+      <input type="range" id="sl-octave" min="2" max="6" value="4">
+      <span id="disp-octave" class="value">4</span>
+    </div>
+    <div class="slider-wrapper">
+      <span class="label">VOLUME:</span>
+      <input type="range" id="sl-volume" min="0" max="100" value="35">
+      <span id="disp-volume" class="value">35%</span>
+    </div>
+  </div>
+  <div class="group">
+    <span class="label">L-CHORDS:</span><span id="status-left" class="value" style="color:var(--left)">0</span>
+    <span class="label" style="margin-left:12px;">R-PITCH:</span><span id="status-right" class="value" style="color:var(--right)">NONE</span>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA E INVERSIÓN LÓGICA DE ESCALAS (V5 LOGIC)
+// ─────────────────────────────────────────────────────────────────────────────
+const SCALES = {
+  "Eolian (Minor)": [0, 2, 3, 5, 7, 8, 10],
+  "Dorian Mode":    [0, 2, 3, 5, 7, 9, 10],
+  "Phrygian Domin": [0, 1, 4, 5, 7, 8, 10],
+  "Pentatonic Min": [0, 3, 5, 7, 10],
+  "Lydian Modern":  [0, 2, 4, 6, 7, 9, 11]
+};
+
+const CHORD_DEGREES = [0, 5, 3, 6, 1, 4, 2, 7]; 
+const MELODY_COUNT = 14; // Estructura de distribución en el anillo derecho
+
+const state = {
+  scale: "Eolian (Minor)",
+  baseFreq: 220, 
+  baseOct: 4,
+  audioEnabled: true,
+  vol: 0.35,
+  isNight: true
+};
+
+let canvasBG, canvasUI, ctxBG, ctxUI;
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+let chordZones = [];
+let melodyOrbs = [];
+let handPos = { 'L': [], 'R': [] };
+
+// Variables de Grabación (MediaRecorder integration)
+let audioCtx = null;
+let masterGain = null;
+let recordDestination = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+const activeOscillators = new Map();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOTOR DE AUDIO INTEGRADO
+// ─────────────────────────────────────────────────────────────────────────────
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.setValueAtTime(state.vol, audioCtx.currentTime);
+  masterGain.connect(audioCtx.destination);
+
+  // Instanciar el nodo destino paralela para la grabación limpia
+  recordDestination = audioCtx.createMediaStreamDestination();
+  masterGain.connect(recordDestination);
+}
+
+function ensureAudio() {
+  if (!audioCtx) initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playOscillator(id, freq, type = 'sine', targetGain = 0.15) {
+  if (!state.audioEnabled) return;
+  ensureAudio();
+
+  if (activeOscillators.has(id)) return;
+
+  const osc = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(targetGain, audioCtx.currentTime + 0.05);
+
+  osc.connect(gainNode);
+  gainNode.connect(masterGain);
+  osc.start();
+
+  activeOscillators.set(id, { osc, gainNode });
+}
+
+function stopOscillator(id) {
+  if (activeOscillators.has(id)) {
+    const { osc, gainNode } = activeOscillators.get(id);
+    try {
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.14);
+      setTimeout(() => {
+        try { osc.stop(); osc.disconnect(); gainNode.disconnect(); } catch (e) {}
+      }, 150);
+    } catch (e) {}
+    activeOscillators.delete(id);
+  }
+}
+
+function noteNameFromFreq(f) {
+  const list = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const noteIdx = Math.round(12 * Math.log2(f / 440)) + 69;
+  return list[noteIdx % 12];
+}
+
+function labelForChord(deg, scaleName) {
+  const numerals = ["I","II","III","IV","V","VI","VII"];
+  const idx = deg % SCALES[scaleName].length;
+  let base = numerals[idx];
+  const stepInterval = SCALES[scaleName][idx];
+  if([3, 8, 10].includes(stepInterval)) base += "m";
+  if([6, 11].includes(stepInterval)) base += "dim";
+  return base;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ARQUITECTURA GEOMÉTRICA ABSOLUTA (MANIFOLD CONCÉNTRICO RIGID)
+// ─────────────────────────────────────────────────────────────────────────────
+function buildZones() {
+  chordZones = [];
+  melodyOrbs = [];
+
+  const HalfW = W * 0.5;
+  const currentScaleArray = SCALES[state.scale];
+
+  // L-Side: Anillos concéntricos de acordes
+  const layouts = [
+    { qty: 4, r: Math.min(HalfW * 0.38, H * 0.32), offsetIdx: 0 },
+    { qty: 4, r: Math.min(HalfW * 0.20, H * 0.16), offsetIdx: 4 }
+  ];
+
+  let cIdx = 0;
+  layouts.forEach(layer => {
+    for (let i = 0; i < layer.qty; i++) {
+      const angle = (i / layer.qty) * Math.PI * 2 - Math.PI / 2;
+      const cx = HalfW * 0.5 + Math.cos(angle) * layer.r;
+      const cy = H * 0.5 + Math.sin(angle) * layer.r;
+      const radius = layer.r * 0.25 + 8;
+
+      const deg = CHORD_DEGREES[cIdx % CHORD_DEGREES.length];
+      const frequency = state.baseFreq * Math.pow(2, (currentScaleArray[deg % currentScaleArray.length] + (state.baseOct - 4) * 12) / 12);
+
+      chordZones.push({
+        cx, cy, r: radius, id: `ch_${cIdx}`,
+        label: labelForChord(deg, state.scale),
+        freq: frequency, active: false, glow: 0
+      });
+      cIdx++;
+    }
+  });
+
+  // R-Side: CÍRCULO DE NOTAS ÓRBITAS CONCÉNTRICAS (Estructura determinista y fija)
+  const centerR_X = HalfW + HalfW * 0.5;
+  const centerR_Y = H * 0.5;
+  const orbitalRadius = Math.min(HalfW * 0.40, H * 0.38);
+
+  for (let i = 0; i < MELODY_COUNT; i++) {
+    const scaleStep = i % currentScaleArray.length;
+    const octaveOffset = Math.floor(i / currentScaleArray.length);
+    const semitones = currentScaleArray[scaleStep] + (octaveOffset * 12);
+    
+    // Proyección de frecuencias limpia según escala activa
+    const frequency = state.baseFreq * Math.pow(2, (semitones + state.baseOct * 12 - 12) / 12);
+
+    // Ángulo absoluto en el sentido de las agujas del reloj, naciendo en el eje norte (-PI/2)
+    const angle = (i / MELODY_COUNT) * Math.PI * 2 - Math.PI / 2;
+
+    const targetX = centerR_X + Math.cos(angle) * orbitalRadius;
+    const targetY = centerR_Y + Math.sin(angle) * orbitalRadius;
+
+    melodyOrbs.push({
+      cx: targetX, cy: targetY,
+      r: 15 + (octaveOffset * 2), // Modificador dimensional sutil por octava
+      id: `mel_${i}`,
+      label: noteNameFromFreq(frequency),
+      freq: frequency,
+      active: false,
+      hovered: false,
+      glow: 0
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MÓDULO DE GRABACIÓN NATIVO
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleAudioRecording() {
+  ensureAudio();
+  const recBtn = document.getElementById('btn-record');
+
+  if (!isRecording) {
+    // Inicializar grabación
+    recordedChunks = [];
+    
+    // Detectar soporte de contenedores estándar
+    let options = { mimeType: 'audio/webm' };
+    if (!MediaRecorder.isTypeSupported('audio/webm')) {
+      options = { mimeType: 'audio/aac' };
+    }
+
+    try {
+      mediaRecorder = new MediaRecorder(recordDestination.stream, options);
+    } catch (e) {
+      showToast("Error al inicializar grabador de audio");
+      return;
+    }
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+      const url = URL.createObjectURL(blob);
+      
+      // Crear trigger de descarga automático
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `stroma-manifold-take-${Date.now()}.webm`;
+      anchor.click();
+      
+      URL.revokeObjectURL(url);
+      showToast("Sesión de audio exportada");
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    recBtn.textContent = "⏹ STOP";
+    recBtn.classList.add('rec-active');
+    showToast("Grabación iniciada");
+  } else {
+    // Detener grabación y procesar archivo
+    mediaRecorder.stop();
+    isRecording = false;
+    recBtn.textContent = "🔴 REC";
+    recBtn.classList.remove('rec-active');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DETECCIÓN INTERACTIVA (MEDIAPIPE INTERACTION)
+// ─────────────────────────────────────────────────────────────────────────────
+function initTracking() {
+  const video = document.getElementById('webcam');
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.60,
+    minTrackingConfidence: 0.60
+  });
+
+  hands.onResults((results) => {
+    handPos['L'] = [];
+    handPos['R'] = [];
+
+    if (results.multiHandLandmarks && results.multiHandedness) {
+      for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+        const side = results.multiHandedness[i].label === 'Left' ? 'R' : 'L'; // Inversión de espejo
+        const indexTip = results.multiHandLandmarks[i][8]; // Extremo de dedo índice
+        if (indexTip) {
+          handPos[side].push({ x: (1 - indexTip.x) * W, y: indexTip.y * H });
+        }
+      }
+    }
+    evaluateCollisions();
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => { await hands.send({ image: video }); },
+    width: 320, height: 240
+  });
+  camera.start().then(() => showToast("Cámara activa. Sistema listo."));
+}
+
+function evaluateCollisions() {
+  // L-Side: Evaluación analítica de acordes (Ondas triangulares estables)
+  chordZones.forEach(z => {
+    let triggered = false;
+    handPos['L'].forEach(f => {
+      if (Math.hypot(f.x - z.cx, f.y - z.cy) < z.r) triggered = true;
+    });
+
+    z.active = triggered;
+    if (z.active) {
+      z.glow = Math.min(1.0, z.glow + 0.12);
+      playOscillator(z.id, z.freq, 'triangle', 0.12);
+    } else {
+      z.glow = Math.max(0.0, z.glow - 0.06);
+      stopOscillator(z.id);
+    }
+  });
+
+  // R-Side: Evaluación del Anillo Concéntrico (Ondas senoidales puras)
+  let activeMelLabel = "NONE";
+  melodyOrbs.forEach(o => {
+    let activeTrigger = false;
+    let proximityHover = false;
+
+    handPos['R'].forEach(f => {
+      const distance = Math.hypot(f.x - o.cx, f.y - o.cy);
+      if (distance < 120) proximityHover = true; // Inducción visual perimetral
+      if (distance < o.r * 1.5) activeTrigger = true; // Intersección física
+    });
+
+    o.hovered = proximityHover;
+    o.active = activeTrigger;
+
+    if (o.active) {
+      o.glow = Math.min(1.0, o.glow + 0.2);
+      playOscillator(o.id, o.freq, 'sine', 0.18);
+      activeMelLabel = o.label;
+    } else {
+      o.glow = Math.max(0.0, o.glow - 0.06);
+      stopOscillator(o.id);
+      if (o.hovered && activeMelLabel === "NONE") {
+        activeMelLabel = `${o.label} (HOVER)`;
+      }
+    }
+  });
+
+  document.getElementById('status-left').textContent = chordZones.filter(z=>z.active).length;
+  document.getElementById('status-right').textContent = activeMelLabel;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOTOR DE RENDERIZADO VECTORIAL
+// ─────────────────────────────────────────────────────────────────────────────
+function drawGrid() {
+  ctxBG.clearRect(0, 0, W, H);
+  ctxBG.strokeStyle = state.isNight ? 'rgba(42, 47, 58, 0.3)' : 'rgba(210, 217, 225, 0.5)';
+  ctxBG.lineWidth = 1;
+
+  const step = 40;
+  for (let x = 0; x < W; x += step) {
+    ctxBG.beginPath(); ctxBG.moveTo(x, 0); ctxBG.lineTo(x, H); ctxBG.stroke();
+  }
+  for (let y = 0; y < H; y += step) {
+    ctxBG.beginPath(); ctxBG.moveTo(0, y); ctxBG.lineTo(W, y); ctxBG.stroke();
+  }
+}
+
+function drawLoop() {
+  ctxUI.clearRect(0, 0, W, H);
+
+  const leftColor = state.isNight ? '240,192,64' : '220,160,20';
+  const rightColor = state.isNight ? '64,200,240' : '20,150,200';
+
+  // 1. Dibujar Acordes (L)
+  chordZones.forEach(z => {
+    if (z.glow > 0.01) {
+      const g = ctxUI.createRadialGradient(z.cx, z.cy, z.r * 0.4, z.cx, z.cy, z.r * (1 + z.glow * 1.4));
+      g.addColorStop(0, `rgba(${leftColor}, ${z.glow * 0.15})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctxUI.beginPath(); ctxUI.arc(z.cx, z.cy, z.r * (1 + z.glow * 1.4), 0, Math.PI*2);
+      ctxUI.fillStyle = g; ctxUI.fill();
+    }
+    ctxUI.beginPath(); ctxUI.arc(z.cx, z.cy, z.r, 0, Math.PI*2);
+    ctxUI.strokeStyle = z.active ? `rgba(${leftColor}, 1)` : `rgba(${leftColor}, 0.3)`;
+    ctxUI.lineWidth = z.active ? 2 : 1;
+    ctxUI.stroke();
+
+    ctxUI.font = `500 10px 'DM Mono'`;
+    ctxUI.fillStyle = z.active ? `rgba(${leftColor}, 1)` : 'var(--text-dim)';
+    ctxUI.textAlign = 'center'; ctxUI.textBaseline = 'middle';
+    ctxUI.fillText(z.label, z.cx, z.cy);
+  });
+
+  // 2. Dibujar Anillo Orbital Absoluto (R)
+  const HalfW = W * 0.5;
+  const centerR_X = HalfW + HalfW * 0.5;
+  const centerR_Y = H * 0.5;
+  const orbitalRadius = Math.min(HalfW * 0.40, H * 0.38);
+
+  // El Riel Guía Estructural
+  ctxUI.beginPath();
+  ctxUI.arc(centerR_X, centerR_Y, orbitalRadius, 0, Math.PI * 2);
+  ctxUI.strokeStyle = `rgba(${rightColor}, 0.15)`;
+  ctxUI.lineWidth = 1;
+  ctxUI.setLineDash([4, 6]);
+  ctxUI.stroke();
+  ctxUI.setLineDash([]);
+
+  // Orbes de Notas Fijas
+  melodyOrbs.forEach(o => {
+    let sizeMultiplier = 1.0;
+    if (o.hovered) sizeMultiplier = 1.2;
+    if (o.active) sizeMultiplier = 1.4;
+    const finalR = o.r * sizeMultiplier;
+
+    if (o.glow > 0.01) {
+      const g = ctxUI.createRadialGradient(o.cx, o.cy, finalR * 0.3, o.cx, o.cy, finalR * 2.2);
+      g.addColorStop(0, `rgba(${rightColor}, ${o.active ? 0.3 : o.glow * 0.12})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctxUI.beginPath(); ctxUI.arc(o.cx, o.cy, finalR * 2.2, 0, Math.PI*2);
+      ctxUI.fillStyle = g; ctxUI.fill();
+    }
+
+    ctxUI.beginPath(); ctxUI.arc(o.cx, o.cy, finalR, 0, Math.PI*2);
+    ctxUI.strokeStyle = o.active ? `rgba(${rightColor}, 1)` : (o.hovered ? `rgba(${rightColor}, 0.65)` : `rgba(${rightColor}, 0.35)`);
+    ctxUI.lineWidth = o.active ? 2 : 1;
+    ctxUI.stroke();
+
+    ctxUI.font = `${o.active || o.hovered ? '500' : '400'} 10px 'DM Mono'`;
+    ctxUI.fillStyle = o.active ? `rgba(${rightColor}, 1)` : (o.hovered ? 'var(--text)' : 'var(--text-dim)');
+    ctxUI.textAlign = 'center'; ctxUI.textBaseline = 'middle';
+    ctxUI.fillText(o.label, o.cx, o.cy);
+  });
+
+  // 3. Puntos de Tracking Cinemático
+  ['L', 'R'].forEach(side => {
+    const c = side === 'L' ? leftColor : rightColor;
+    handPos[side].forEach(f => {
+      ctxUI.beginPath(); ctxUI.arc(f.x, f.y, 6, 0, Math.PI*2);
+      ctxUI.fillStyle = `rgba(${c}, 0.85)`; ctxUI.fill();
+      ctxUI.strokeStyle = '#fff'; ctxUI.lineWidth = 1.5; ctxUI.stroke();
+    });
+  });
+
+  requestAnimationFrame(drawLoop);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN DE CONTEXTO E INTERFAZ DE USUARIO
+// ─────────────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function setupUI() {
+  canvasBG = document.getElementById('canvas-bg'); ctxBG = canvasBG.getContext('2d');
+  canvasUI = document.getElementById('canvas-ui'); ctxUI = canvasUI.getContext('2d');
+  
+  const scaleSelect = document.getElementById('scale-select');
+  Object.keys(SCALES).forEach(s => {
+    const opt = document.createElement('option'); opt.value = s; opt.textContent = s;
+    scaleSelect.appendChild(opt);
+  });
+  scaleSelect.value = state.scale;
+  scaleSelect.addEventListener('change', (e) => {
+    state.scale = e.target.value; buildZones(); showToast(`Escala: ${state.scale}`);
+  });
+
+  const slOct = document.getElementById('sl-octave');
+  slOct.addEventListener('input', () => {
+    state.baseOct = parseInt(slOct.value); document.getElementById('disp-octave').textContent = state.baseOct; buildZones();
+  });
+
+  const slVol = document.getElementById('sl-volume');
+  slVol.addEventListener('input', () => {
+    state.vol = parseInt(slVol.value) / 100; document.getElementById('disp-volume').textContent = slVol.value + "%";
+    if (masterGain) masterGain.gain.setTargetAtTime(state.vol, audioCtx.currentTime, 0.04);
+  });
+
+  document.getElementById('btn-audio').addEventListener('click', function() {
+    state.audioEnabled = !state.audioEnabled;
+    this.textContent = state.audioEnabled ? "AUDIO ON" : "AUDIO MUTED";
+    this.classList.toggle('active', state.audioEnabled);
+    if(!state.audioEnabled) activeOscillators.forEach((v, k) => stopOscillator(k));
+  });
+
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    state.isNight = !state.isNight;
+    document.documentElement.classList.toggle('day-mode', !state.isNight);
+    drawGrid();
+  });
+
+  // Listener para el botón de grabación
+  document.getElementById('btn-record').addEventListener('click', toggleAudioRecording);
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth; H = window.innerHeight;
+    canvasBG.width = W; canvasBG.height = H; canvasUI.width = W; canvasUI.height = H;
+    buildZones(); drawGrid();
+  });
+
+  // Inicialización de dimensiones forzada
+  window.dispatchEvent(new Event('resize'));
+
+  ['click', 'touchstart'].forEach(ev => {
+    document.addEventListener(ev, () => { ensureAudio(); }, { once: true });
+  });
+}
+
+window.addEventListener('load', () => {
+  setupUI();
+  initTracking();
+  requestAnimationFrame(drawLoop);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SOUNDGO·MIXTURA — Hand Synth</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #050a0f;
+    --bg2: #0a1520;
+    --bg3: #0f1f30;
+    --accent: #00ffe7;
+    --accent2: #ff6b35;
+    --accent3: #a855f7;
+    --text: #c8e6f0;
+    --text-dim: #4a7a8a;
+    --btn-idle: #0d2233;
+    --btn-hover: #1a3d55;
+    --btn-active: #00ffe7;
+    --btn-border: #1e4a66;
+    --danger: #ff3366;
+    --success: #39ff14;
+    --glow: 0 0 20px rgba(0,255,231,0.4);
+    --glow2: 0 0 20px rgba(255,107,53,0.4);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Scan-line overlay */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,231,0.015) 2px, rgba(0,255,231,0.015) 4px);
+    pointer-events:none; z-index:9999;
+  }
+
+  /* Header */
+  #header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 8px 12px;
+    background: linear-gradient(90deg, #050a0f, #0a1520);
+    border-bottom: 1px solid #1a3344;
+  }
+  #logo {
+    font-family:'Orbitron',sans-serif;
+    font-size:13px; font-weight:900;
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent);
+    letter-spacing:2px;
+  }
+  #logo span { color:var(--accent2); }
+  #chord-display {
+    font-family:'Orbitron',sans-serif;
+    font-size:22px; font-weight:900;
+    color: var(--accent);
+    text-shadow: 0 0 15px var(--accent);
+    min-width:120px; text-align:center;
+    transition: all 0.1s;
+  }
+  #freq-display {
+    font-size:10px; color:var(--text-dim);
+    text-align:right;
+    line-height:1.4;
+  }
+
+  /* Main layout */
+  #main {
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:8px;
+    padding:8px;
+    max-width:900px;
+    margin:0 auto;
+  }
+
+  @media(min-width:700px) {
+    #main { grid-template-columns: 220px 1fr; }
+    #controls-panel { order:1; }
+    #pad-section { order:2; }
+  }
+
+  /* Controls Panel */
+  #controls-panel {
+    background: var(--bg2);
+    border: 1px solid var(--btn-border);
+    border-radius:12px;
+    padding:10px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+
+  .ctrl-group {
+    background: var(--bg3);
+    border-radius:8px;
+    padding:8px;
+    border: 1px solid #1a3344;
+  }
+  .ctrl-label {
+    font-size:9px; letter-spacing:2px;
+    color:var(--text-dim); text-transform:uppercase;
+    margin-bottom:5px;
+  }
+  select, .slider-wrap input[type=range] {
+    width:100%;
+    background: var(--bg);
+    border:1px solid var(--btn-border);
+    color:var(--text);
+    border-radius:6px;
+    padding:5px 8px;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    appearance:none; -webkit-appearance:none;
+    cursor:pointer;
+  }
+  select option { background: var(--bg2); }
+  select:focus { outline:none; border-color:var(--accent); }
+
+  input[type=range] {
+    -webkit-appearance:none; appearance:none;
+    height:6px;
+    background: linear-gradient(90deg, var(--accent) var(--val,50%), #1a3344 var(--val,50%));
+    border-radius:3px;
+    outline:none; border:none; padding:0;
+    cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none;
+    width:16px; height:16px;
+    background: var(--accent);
+    border-radius:50%;
+    box-shadow: 0 0 8px var(--accent);
+    cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width:16px; height:16px;
+    background: var(--accent);
+    border-radius:50%; border:none;
+    box-shadow: 0 0 8px var(--accent);
+    cursor:pointer;
+  }
+
+  .slider-val {
+    font-size:10px; color:var(--accent);
+    text-align:right; margin-top:2px;
+  }
+
+  /* Crossfader */
+  #crossfader-wrap {
+    display:flex; align-items:center; gap:6px;
+    font-size:9px; color:var(--text-dim);
+  }
+  #crossfader-wrap input { flex:1; }
+
+  /* Checkbox */
+  .check-wrap {
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; color:var(--text);
+    cursor:pointer;
+  }
+  .check-wrap input[type=checkbox] {
+    width:16px; height:16px;
+    accent-color:var(--accent);
+    cursor:pointer;
+  }
+
+  /* Buttons row */
+  .btn-row { display:flex; gap:6px; flex-wrap:wrap; }
+  .ctrl-btn {
+    flex:1; min-width:60px;
+    padding:8px 4px;
+    background: var(--btn-idle);
+    border:1px solid var(--btn-border);
+    color:var(--text);
+    border-radius:8px;
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    cursor:pointer;
+    transition: all 0.15s;
+    text-align:center;
+  }
+  .ctrl-btn:hover { background:var(--btn-hover); border-color:var(--accent); }
+  .ctrl-btn.active { background:var(--danger); border-color:var(--danger); color:#fff; box-shadow:0 0 12px var(--danger); }
+  .ctrl-btn.rec { animation: recPulse 1s infinite; }
+  @keyframes recPulse {
+    0%,100% { box-shadow:0 0 8px var(--danger); }
+    50% { box-shadow:0 0 20px var(--danger); }
+  }
+  .ctrl-btn.muted { background:#1a0a0a; border-color:#660022; color:var(--danger); }
+
+  #rec-time {
+    font-size:11px; color:var(--danger);
+    text-align:center; min-height:16px;
+  }
+
+  /* Oscilloscope */
+  #scope-canvas {
+    width:100%; height:50px;
+    background: #030810;
+    border:1px solid #1a3344;
+    border-radius:6px;
+    display:block;
+  }
+
+  /* Pad grid */
+  #pad-section {
+    display:flex; flex-direction:column; gap:8px;
+  }
+
+  #pad-grid {
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:6px;
+    touch-action: none;
+  }
+
+  .pad-btn {
+    aspect-ratio: 1;
+    min-height:60px;
+    background: var(--btn-idle);
+    border:1px solid var(--btn-border);
+    border-radius:10px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    cursor:pointer;
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+    position:relative;
+    overflow:hidden;
+  }
+  .pad-btn::before {
+    content:'';
+    position:absolute; inset:0;
+    background: radial-gradient(circle at center, rgba(0,255,231,0.15), transparent 70%);
+    opacity:0; transition:opacity 0.15s;
+  }
+  .pad-btn.active::before { opacity:1; }
+  .pad-btn.active {
+    transform:scale(0.93);
+    box-shadow: var(--glow), inset 0 0 20px rgba(0,255,231,0.2);
+    border-color:var(--accent);
+    background: #0d2f3f;
+  }
+  .pad-btn.finger-hover {
+    border-color:var(--accent2);
+    box-shadow: 0 0 15px rgba(255,107,53,0.5);
+    background: #1a1a08;
+  }
+  .pad-degree {
+    font-family:'Orbitron',sans-serif;
+    font-size:13px; font-weight:700;
+    color:var(--accent);
+  }
+  .pad-btn.active .pad-degree { color:#fff; }
+  .pad-name {
+    font-size:9px; color:var(--text-dim);
+    margin-top:2px;
+  }
+  .pad-btn.active .pad-name { color:var(--accent); }
+
+  /* Color variants for pads */
+  .pad-btn:nth-child(1)  { --pad-c: #00ffe7; }
+  .pad-btn:nth-child(2)  { --pad-c: #00d4c7; }
+  .pad-btn:nth-child(3)  { --pad-c: #ff6b35; }
+  .pad-btn:nth-child(4)  { --pad-c: #ff8a5b; }
+  .pad-btn:nth-child(5)  { --pad-c: #a855f7; }
+  .pad-btn:nth-child(6)  { --pad-c: #c084fc; }
+  .pad-btn:nth-child(7)  { --pad-c: #39ff14; }
+  .pad-btn:nth-child(8)  { --pad-c: #22cc0a; }
+  .pad-btn:nth-child(9)  { --pad-c: #ffd700; }
+  .pad-btn:nth-child(10) { --pad-c: #ffb300; }
+  .pad-btn:nth-child(11) { --pad-c: #ff3366; }
+  .pad-btn:nth-child(12) { --pad-c: #ff6699; }
+  .pad-btn:nth-child(13) { --pad-c: #00bfff; }
+  .pad-btn:nth-child(14) { --pad-c: #0099dd; }
+  .pad-btn:nth-child(15) { --pad-c: #ff9900; }
+  .pad-btn:nth-child(16) { --pad-c: #ff6600; }
+
+  .pad-btn .pad-degree { color: var(--pad-c); }
+  .pad-btn.active { border-color: var(--pad-c); }
+  .pad-btn.active::before { background: radial-gradient(circle at center, color-mix(in srgb, var(--pad-c) 20%, transparent), transparent 70%); opacity:1; }
+
+  /* Camera overlay */
+  #cam-container {
+    position: relative;
+    width:120px; height:90px;
+    border:1px solid var(--btn-border);
+    border-radius:8px;
+    overflow:hidden;
+    background:#000;
+    flex-shrink:0;
+  }
+  #cam-video {
+    width:100%; height:100%;
+    object-fit:cover;
+    transform:scaleX(-1);
+    opacity:0.85;
+  }
+  #cam-canvas {
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    transform:scaleX(-1);
+  }
+  #cam-status {
+    position:absolute; bottom:3px; left:3px;
+    font-size:8px; color:var(--accent2);
+    background:rgba(0,0,0,0.6);
+    padding:1px 4px; border-radius:3px;
+  }
+
+  /* Top bar with cam + chord */
+  #top-bar {
+    display:flex; align-items:center; gap:8px;
+    flex-wrap:wrap;
+  }
+  #top-bar-info {
+    flex:1;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  #chord-big {
+    font-family:'Orbitron',sans-serif;
+    font-size:28px; font-weight:900;
+    color:var(--accent);
+    text-shadow: 0 0 20px var(--accent);
+    line-height:1;
+  }
+  #note-info {
+    font-size:10px; color:var(--text-dim);
+  }
+
+  /* VU meter */
+  #vu-wrap {
+    height:8px;
+    background:#1a3344;
+    border-radius:4px;
+    overflow:hidden;
+  }
+  #vu-bar {
+    height:100%;
+    width:0%;
+    background: linear-gradient(90deg, var(--success), var(--accent), var(--accent2), var(--danger));
+    border-radius:4px;
+    transition:width 0.05s;
+  }
+
+  /* Preset buttons */
+  #presets-row {
+    display:flex; gap:4px; flex-wrap:wrap;
+  }
+  .preset-btn {
+    flex:1; min-width:50px;
+    padding:5px 4px;
+    background:var(--bg);
+    border:1px solid #1a3344;
+    color:var(--text-dim);
+    border-radius:6px;
+    font-family:'Space Mono',monospace;
+    font-size:9px;
+    cursor:pointer;
+    text-align:center;
+    transition:all 0.15s;
+  }
+  .preset-btn:hover { border-color:var(--accent3); color:var(--accent3); }
+  .preset-btn.saved { border-color:var(--accent3); color:var(--accent3); }
+
+  /* Loop sequencer */
+  #loop-row {
+    display:flex; gap:6px; align-items:center;
+  }
+  .loop-slot {
+    flex:1; height:36px;
+    background:var(--bg);
+    border:1px solid #1a3344;
+    border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; color:var(--text-dim);
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .loop-slot.filled { border-color:var(--accent3); color:var(--accent3); }
+  .loop-slot.playing { border-color:var(--accent); color:var(--accent); box-shadow:0 0 8px var(--accent); animation: loopPulse 0.3s ease; }
+  @keyframes loopPulse { 0%{transform:scale(1)} 50%{transform:scale(1.05)} 100%{transform:scale(1)} }
+  #loop-play-btn {
+    width:36px; height:36px;
+    background:var(--accent3);
+    border:none; border-radius:50%;
+    color:#fff; font-size:14px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 10px var(--accent3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  #loop-play-btn:hover { transform:scale(1.1); }
+  #loop-play-btn.playing { background:var(--danger); box-shadow:0 0 10px var(--danger); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--btn-border); border-radius:2px; }
+
+  /* Toast */
+  #toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--accent); color:#000;
+    padding:8px 16px; border-radius:20px;
+    font-size:11px; font-weight:700;
+    opacity:0; transition:opacity 0.3s;
+    pointer-events:none; z-index:10000;
+  }
+  #toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">SOUND<span>GO</span>·MIXTURA</div>
+  <div id="chord-display">—</div>
+  <div id="freq-display">
+    <div id="freq-hz">440 Hz</div>
+    <div id="freq-note">A4</div>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- Controls Panel -->
+  <div id="controls-panel">
+
+    <!-- Cam + chord info -->
+    <div class="ctrl-group">
+      <div id="top-bar">
+        <div id="cam-container">
+          <video id="cam-video" autoplay playsinline muted></video>
+          <canvas id="cam-canvas"></canvas>
+          <div id="cam-status">INIT...</div>
+        </div>
+        <div id="top-bar-info">
+          <div id="chord-big">—</div>
+          <div id="note-info">Toca un pad</div>
+          <div id="vu-wrap"><div id="vu-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scale + Style -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ ESCALA / ESTILO</div>
+      <select id="scale-sel">
+        <option value="major">Do Mayor</option>
+        <option value="minor">La Menor</option>
+        <option value="penta_major">Pentatónica Mayor</option>
+        <option value="penta_minor">Pentatónica Menor</option>
+      </select>
+      <div style="height:5px"></div>
+      <select id="style-sel">
+        <option value="steven">🌟 Steven Universe</option>
+        <option value="lofi" selected>🎧 Lo-fi / Chillhop</option>
+        <option value="piano">🎹 Piano</option>
+        <option value="organ">🎷 Órgano</option>
+        <option value="xylophone">🎼 Xilófono</option>
+      </select>
+      <div style="height:5px"></div>
+      <select id="style2-sel">
+        <option value="steven">🌟 Steven Universe</option>
+        <option value="lofi">🎧 Lo-fi / Chillhop</option>
+        <option value="piano" selected>🎹 Piano (B)</option>
+        <option value="organ">🎷 Órgano</option>
+        <option value="xylophone">🎼 Xilófono</option>
+      </select>
+      <div class="ctrl-label" style="margin-top:6px;">▸ CROSSFADER A→B</div>
+      <div id="crossfader-wrap">
+        <span>A</span>
+        <input type="range" id="crossfader" min="0" max="100" value="0">
+        <span>B</span>
+      </div>
+      <div class="slider-val" id="cross-val">A: 100%</div>
+    </div>
+
+    <!-- Freq + Volume -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ FRECUENCIA BASE</div>
+      <input type="range" id="freq-slider" min="80" max="1000" value="261" step="1">
+      <div class="slider-val" id="freq-val">261 Hz — C4</div>
+      <div class="ctrl-label" style="margin-top:6px;">▸ VOLUMEN MAESTRO</div>
+      <input type="range" id="vol-slider" min="0" max="100" value="70">
+      <div class="slider-val" id="vol-val">70%</div>
+    </div>
+
+    <!-- Options -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ OPCIONES</div>
+      <label class="check-wrap">
+        <input type="checkbox" id="vinyl-chk"> Ruido Vinyl (Lo-fi)
+      </label>
+    </div>
+
+    <!-- Rec controls -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ GRABACIÓN</div>
+      <div class="btn-row">
+        <button class="ctrl-btn" id="rec-btn">⏺ REC</button>
+        <button class="ctrl-btn" id="stop-btn" disabled>⏹ STOP</button>
+        <button class="ctrl-btn" id="mute-btn">🔊 MUTE</button>
+      </div>
+      <div id="rec-time"></div>
+      <div class="btn-row" style="margin-top:6px;">
+        <button class="ctrl-btn" id="play-rec-btn" disabled>▶ PLAY</button>
+        <button class="ctrl-btn" id="dl-btn" disabled>⬇ DL</button>
+      </div>
+    </div>
+
+    <!-- Oscilloscope -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ OSCILOSCOPIO</div>
+      <canvas id="scope-canvas" width="200" height="50"></canvas>
+    </div>
+
+    <!-- Presets -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ PRESETS</div>
+      <div id="presets-row">
+        <button class="preset-btn" data-slot="0">P1</button>
+        <button class="preset-btn" data-slot="1">P2</button>
+        <button class="preset-btn" data-slot="2">P3</button>
+        <button class="preset-btn" data-slot="3">P4</button>
+      </div>
+      <div class="btn-row" style="margin-top:5px;">
+        <button class="ctrl-btn" id="save-preset-btn" style="font-size:9px;">💾 GUARDAR</button>
+        <button class="ctrl-btn" id="clear-preset-btn" style="font-size:9px;">🗑 LIMPIAR</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pad Section -->
+  <div id="pad-section">
+
+    <!-- Loop sequencer -->
+    <div class="ctrl-group">
+      <div class="ctrl-label">▸ LOOP SEQUENCER (4 ACORDES)</div>
+      <div id="loop-row">
+        <div class="loop-slot" data-idx="0">—</div>
+        <div class="loop-slot" data-idx="1">—</div>
+        <div class="loop-slot" data-idx="2">—</div>
+        <div class="loop-slot" data-idx="3">—</div>
+        <button id="loop-play-btn">▶</button>
+        <button class="ctrl-btn" id="loop-clear-btn" style="width:36px;height:36px;min-width:unset;flex:none;font-size:10px;">✕</button>
+      </div>
+    </div>
+
+    <!-- Pad grid -->
+    <div id="pad-grid"></div>
+
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+/* =============================================
+   SOUNDGO·MIXTURA — Hand Synth
+   Modular JS, Web Audio API + MediaPipe Hands
+   ============================================= */
+
+// ─────────────────────────────────────────────
+// 1. AUDIO ENGINE
+// ─────────────────────────────────────────────
+let audioCtx = null;
+let masterGain = null;
+let masterLimiter = null;
+let analyser = null;
+let recDest = null;
+let vinylNode = null;
+let vinylGain = null;
+let isMuted = false;
+let activeVoices = [];
+const MAX_VOICES = 12;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.7;
+
+  masterLimiter = audioCtx.createDynamicsCompressor();
+  masterLimiter.threshold.value = -3;
+  masterLimiter.knee.value = 3;
+  masterLimiter.ratio.value = 20;
+  masterLimiter.attack.value = 0.001;
+  masterLimiter.release.value = 0.1;
+
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+
+  recDest = audioCtx.createMediaStreamDestination();
+
+  masterGain.connect(masterLimiter);
+  masterLimiter.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  analyser.connect(recDest);
+
+  // Vinyl noise
+  vinylGain = audioCtx.createGain();
+  vinylGain.gain.value = 0;
+  const bufSize = audioCtx.sampleRate * 2;
+  const noiseBuffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    noiseData[i] = (Math.random() * 2 - 1) * 0.02;
+  }
+  const noiseSource = audioCtx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 400;
+  noiseFilter.Q.value = 0.5;
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(vinylGain);
+  vinylGain.connect(masterGain);
+  noiseSource.start();
+}
+
+// ─────────────────────────────────────────────
+// 2. MUSIC THEORY
+// ─────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function freqToNote(hz) {
+  const midi = Math.round(12 * Math.log2(hz / 440) + 69);
+  const octave = Math.floor(midi / 12) - 1;
+  const name = NOTE_NAMES[((midi % 12) + 12) % 12];
+  return name + octave;
+}
+
+// Scale interval patterns (semitones from root)
+const SCALES = {
+  major:       [0, 2, 4, 5, 7, 9, 11, 12, 14, 16],
+  minor:       [0, 2, 3, 5, 7, 8, 10, 12, 14, 15],
+  penta_major: [0, 2, 4, 7, 9,  0+12, 2+12, 4+12, 7+12, 9+12],
+  penta_minor: [0, 3, 5, 7, 10, 0+12, 3+12, 5+12, 7+12, 10+12],
+};
+
+// Chord voicings per degree and style
+// Returns array of semitone offsets from root
+function getChordIntervals(degreeIdx, scaleName, style) {
+  const scale = SCALES[scaleName];
+  const root = scale[degreeIdx % scale.length];
+
+  // Base triad
+  const third = scale[(degreeIdx + 2) % scale.length] - root;
+  const fifth  = scale[(degreeIdx + 4) % scale.length] - root;
+  const seventh= scale[(degreeIdx + 6) % scale.length] - root;
+  const ninth  = scale[(degreeIdx + 8) % scale.length] - root;
+
+  // Normalize negative intervals
+  const n = x => ((x % 12) + 12) % 12;
+  const T3 = n(third), T5 = n(fifth), T7 = n(seventh), T9 = n(ninth);
+  const base = [0, T3, T5];
+
+  if (style === 'steven') {
+    // maj7, add9, maj9 — bright, sparkly
+    return [0, T3, T5, 11, T9, 14];
+  } else if (style === 'lofi') {
+    // 7th, 9th chords
+    return [0, T3, T5, T7, T9];
+  } else if (style === 'piano') {
+    return [0, T3, T5, T7];
+  } else if (style === 'organ') {
+    // Root + 5th + octave (hollow fifths)
+    return [0, T5, 12, 12+T5];
+  } else if (style === 'xylophone') {
+    return [0, T3, T5]; // simple triad
+  }
+  return base;
+}
+
+// Chord name builder
+function getChordName(degreeIdx, scaleName, style) {
+  const scale = SCALES[scaleName];
+  const rootSemi = scale[degreeIdx % scale.length];
+  const degrees = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI'];
+  const ext = {steven:'maj9', lofi:'7', piano:'maj7', organ:'5', xylophone:''};
+  return degrees[degreeIdx] + (ext[style] || '');
+}
+
+// ─────────────────────────────────────────────
+// 3. INSTRUMENT SYNTHESIS
+// ─────────────────────────────────────────────
+const STYLE_PARAMS = {
+  steven: {
+    waveform: 'sine',
+    attack: 0.02, decay: 0.3, sustain: 0.6, release: 0.5,
+    detuneSpread: 3,
+    filterFreq: 5000, filterType: 'lowpass',
+    gain: 0.22,
+  },
+  lofi: {
+    waveform: 'triangle',
+    attack: 0.05, decay: 0.4, sustain: 0.5, release: 0.4,
+    detuneSpread: 8,
+    filterFreq: 1000, filterType: 'lowpass',
+    gain: 0.25,
+  },
+  piano: {
+    waveform: 'triangle',
+    attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.6,
+    detuneSpread: 1,
+    filterFreq: 8000, filterType: 'lowpass',
+    gain: 0.28,
+  },
+  organ: {
+    waveform: 'sine',
+    attack: 0.02, decay: 0.0, sustain: 0.9, release: 0.2,
+    detuneSpread: 0,
+    filterFreq: 4000, filterType: 'lowpass',
+    gain: 0.18,
+    harmonics: [1, 2, 3, 4, 6], // drawbar
+  },
+  xylophone: {
+    waveform: 'sine',
+    attack: 0.001, decay: 0.25, sustain: 0.0, release: 0.15,
+    detuneSpread: 0,
+    filterFreq: 12000, filterType: 'lowpass',
+    gain: 0.35,
+  },
+};
+
+function playChord(baseFreq, degreeIdx, scaleName, styleA, styleB, crossAmt, vinylOn) {
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  // Limit voices
+  while (activeVoices.length >= MAX_VOICES) {
+    const old = activeVoices.shift();
+    old.forEach(n => { try { n.stop(audioCtx.currentTime + 0.05); } catch(e){} });
+  }
+
+  const chordNodes = [];
+
+  const playStyle = (style, gainMul) => {
+    const params = STYLE_PARAMS[style];
+    const intervals = getChordIntervals(degreeIdx, scaleName, style);
+    const scale = SCALES[scaleName];
+    const rootSemi = scale[degreeIdx % scale.length];
+    const rootFreq = baseFreq * Math.pow(2, rootSemi / 12);
+
+    intervals.forEach((semi, i) => {
+      const freq = rootFreq * Math.pow(2, semi / 12);
+      const harmonics = params.harmonics || [1];
+      harmonics.forEach((h, hi) => {
+        const osc = audioCtx.createOscillator();
+        const env = audioCtx.createGain();
+        const filt = audioCtx.createBiquadFilter();
+        filt.type = params.filterType;
+        filt.frequency.value = params.filterFreq;
+
+        osc.type = params.waveform;
+        osc.frequency.value = freq * h;
+        osc.detune.value = (Math.random() - 0.5) * params.detuneSpread * 2;
+
+        const now = audioCtx.currentTime;
+        const g = params.gain * gainMul * (1 / harmonics.length) * (1 / (hi + 1));
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(g, now + params.attack);
+        env.gain.linearRampToValueAtTime(g * params.sustain, now + params.attack + params.decay);
+
+        osc.connect(env);
+        env.connect(filt);
+        filt.connect(masterGain);
+        osc.start(now);
+
+        // Release
+        const dur = Math.max(params.attack + params.decay + 1.2, 2);
+        env.gain.setValueAtTime(g * params.sustain, now + dur - params.release);
+        env.gain.linearRampToValueAtTime(0, now + dur);
+        osc.stop(now + dur + 0.1);
+        chordNodes.push(osc);
+      });
+    });
+
+    // FM shimmer for Steven Universe
+    if (style === 'steven') {
+      const modFreq = rootFreq * 3;
+      const modOsc = audioCtx.createOscillator();
+      const modGain = audioCtx.createGain();
+      modOsc.frequency.value = modFreq;
+      modGain.gain.value = 15;
+      modOsc.connect(modGain);
+      // connect to carrier frequency (first osc approximation)
+      modOsc.start();
+      modOsc.stop(audioCtx.currentTime + 2);
+      chordNodes.push(modOsc);
+    }
+  };
+
+  const volA = 1 - crossAmt / 100;
+  const volB = crossAmt / 100;
+  if (volA > 0.01) playStyle(styleA, volA);
+  if (volB > 0.01) playStyle(styleB, volB);
+
+  activeVoices.push(chordNodes);
+
+  // Vinyl noise toggle
+  if (vinylGain) {
+    vinylGain.gain.setTargetAtTime(
+      (vinylOn && (styleA === 'lofi' || styleB === 'lofi')) ? 0.15 : 0,
+      audioCtx.currentTime, 0.1
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 4. PAD GRID GENERATION
+// ─────────────────────────────────────────────
+const padGrid = document.getElementById('pad-grid');
+const pads = [];
+
+// 16 pads = 4 rows × 4 cols, degrees 0-15
+for (let i = 0; i < 16; i++) {
+  const btn = document.createElement('div');
+  btn.className = 'pad-btn';
+  btn.dataset.idx = i;
+  const deg = document.createElement('div');
+  deg.className = 'pad-degree';
+  deg.textContent = ['I','II','III','IV','V','VI','VII','VIII','bII','bIII','bV','bVI','bVII','IIadd','IVadd','IXsus'][i];
+  const name = document.createElement('div');
+  name.className = 'pad-name';
+  name.textContent = '...';
+  btn.appendChild(deg);
+  btn.appendChild(name);
+  padGrid.appendChild(btn);
+  pads.push(btn);
+}
+
+// ─────────────────────────────────────────────
+// 5. STATE
+// ─────────────────────────────────────────────
+let currentDegree = -1;
+let baseFreq = 261;
+let currentChordName = '—';
+const state = {
+  scale: 'major',
+  styleA: 'lofi',
+  styleB: 'piano',
+  cross: 0,
+  vol: 70,
+  vinyl: false,
+  freq: 261,
+};
+
+function updatePadNames() {
+  pads.forEach((btn, i) => {
+    const name = btn.querySelector('.pad-name');
+    const scale = SCALES[state.scale];
+    const rootSemi = scale[i % scale.length];
+    const rootFreq = state.freq * Math.pow(2, rootSemi / 12);
+    name.textContent = freqToNote(rootFreq);
+  });
+}
+
+// ─────────────────────────────────────────────
+// 6. PAD INTERACTION (mouse / touch / hand)
+// ─────────────────────────────────────────────
+let lastTriggeredIdx = -1;
+let triggerCooldown = false;
+
+function triggerPad(idx, source = 'mouse') {
+  if (idx < 0 || idx >= 16) return;
+  if (idx === lastTriggeredIdx && source === 'hand') return;
+  initAudio();
+
+  lastTriggeredIdx = idx;
+
+  // Visual
+  pads.forEach(p => p.classList.remove('active'));
+  pads[idx].classList.add('active');
+  setTimeout(() => pads[idx]?.classList.remove('active'), 400);
+
+  // Haptic
+  if (navigator.vibrate) navigator.vibrate(30);
+
+  // Audio
+  playChord(state.freq, idx, state.scale, state.styleA, state.styleB, state.cross, state.vinyl);
+
+  // Display
+  currentChordName = getChordName(idx, state.scale, state.styleA);
+  document.getElementById('chord-display').textContent = currentChordName;
+  document.getElementById('chord-big').textContent = currentChordName;
+  document.getElementById('note-info').textContent = `Grado ${idx + 1} — ${state.scale}`;
+
+  // Loop recording
+  loopRecord(idx, currentChordName);
+}
+
+// Touch & mouse on pads
+padGrid.addEventListener('touchstart', e => {
+  e.preventDefault();
+  initAudio();
+  Array.from(e.changedTouches).forEach(t => {
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const btn = el?.closest('.pad-btn');
+    if (btn) triggerPad(parseInt(btn.dataset.idx), 'touch');
+  });
+}, { passive: false });
+
+padGrid.addEventListener('touchmove', e => {
+  e.preventDefault();
+  Array.from(e.changedTouches).forEach(t => {
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const btn = el?.closest('.pad-btn');
+    if (btn) {
+      const idx = parseInt(btn.dataset.idx);
+      if (idx !== lastTriggeredIdx) triggerPad(idx, 'touch');
+    }
+  });
+}, { passive: false });
+
+padGrid.addEventListener('mousedown', e => {
+  initAudio();
+  const btn = e.target.closest('.pad-btn');
+  if (btn) triggerPad(parseInt(btn.dataset.idx), 'mouse');
+});
+padGrid.addEventListener('mousemove', e => {
+  if (e.buttons !== 1) return;
+  const btn = e.target.closest('.pad-btn');
+  if (btn) {
+    const idx = parseInt(btn.dataset.idx);
+    if (idx !== lastTriggeredIdx) triggerPad(idx, 'mouse');
+  }
+});
+
+// ─────────────────────────────────────────────
+// 7. CONTROLS
+// ─────────────────────────────────────────────
+function updateSliderBg(el) {
+  const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--val', pct + '%');
+}
+
+document.getElementById('scale-sel').addEventListener('change', e => {
+  state.scale = e.target.value;
+  updatePadNames();
+});
+document.getElementById('style-sel').addEventListener('change', e => {
+  state.styleA = e.target.value;
+});
+document.getElementById('style2-sel').addEventListener('change', e => {
+  state.styleB = e.target.value;
+});
+document.getElementById('crossfader').addEventListener('input', e => {
+  state.cross = parseInt(e.target.value);
+  updateSliderBg(e.target);
+  const a = 100 - state.cross;
+  document.getElementById('cross-val').textContent = `A: ${a}% / B: ${state.cross}%`;
+});
+document.getElementById('freq-slider').addEventListener('input', e => {
+  state.freq = parseInt(e.target.value);
+  updateSliderBg(e.target);
+  const note = freqToNote(state.freq);
+  document.getElementById('freq-val').textContent = `${state.freq} Hz — ${note}`;
+  document.getElementById('freq-hz').textContent = `${state.freq} Hz`;
+  document.getElementById('freq-note').textContent = note;
+  updatePadNames();
+});
+document.getElementById('vol-slider').addEventListener('input', e => {
+  state.vol = parseInt(e.target.value);
+  updateSliderBg(e.target);
+  document.getElementById('vol-val').textContent = `${state.vol}%`;
+  if (masterGain) masterGain.gain.setTargetAtTime(state.vol / 100 * (isMuted ? 0 : 1), audioCtx.currentTime, 0.05);
+});
+document.getElementById('vinyl-chk').addEventListener('change', e => {
+  state.vinyl = e.target.checked;
+});
+
+// Mute
+document.getElementById('mute-btn').addEventListener('click', () => {
+  initAudio();
+  isMuted = !isMuted;
+  const btn = document.getElementById('mute-btn');
+  if (isMuted) {
+    masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+    btn.textContent = '🔇 MUTED';
+    btn.classList.add('muted');
+  } else {
+    masterGain.gain.setTargetAtTime(state.vol / 100, audioCtx.currentTime, 0.05);
+    btn.textContent = '🔊 MUTE';
+    btn.classList.remove('muted');
+  }
+});
+
+// Init slider backgrounds
+document.querySelectorAll('input[type=range]').forEach(s => updateSliderBg(s));
+
+// ─────────────────────────────────────────────
+// 8. RECORDING
+// ─────────────────────────────────────────────
+let mediaRecorder = null;
+let recChunks = [];
+let recTimer = null;
+let recSeconds = 0;
+let lastRecBlob = null;
+let recAudio = null;
+
+document.getElementById('rec-btn').addEventListener('click', () => {
+  initAudio();
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
+
+  recChunks = [];
+  const stream = recDest.stream;
+  const options = { mimeType: 'audio/webm;codecs=opus' };
+  try {
+    mediaRecorder = new MediaRecorder(stream, options);
+  } catch(e) {
+    mediaRecorder = new MediaRecorder(stream);
+  }
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    const mime = recChunks[0]?.type || 'audio/webm';
+    lastRecBlob = new Blob(recChunks, { type: mime });
+    recAudio = new Audio(URL.createObjectURL(lastRecBlob));
+    document.getElementById('play-rec-btn').disabled = false;
+    document.getElementById('dl-btn').disabled = false;
+    showToast('Grabación lista ✓');
+  };
+  mediaRecorder.start(100);
+  recSeconds = 0;
+  recTimer = setInterval(() => {
+    recSeconds++;
+    const m = String(Math.floor(recSeconds/60)).padStart(2,'0');
+    const s = String(recSeconds%60).padStart(2,'0');
+    document.getElementById('rec-time').textContent = `⏱ ${m}:${s}`;
+  }, 1000);
+
+  const recBtn = document.getElementById('rec-btn');
+  recBtn.classList.add('active','rec');
+  recBtn.textContent = '⏺ REC...';
+  document.getElementById('stop-btn').disabled = false;
+});
+
+document.getElementById('stop-btn').addEventListener('click', () => {
+  if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+  mediaRecorder.stop();
+  clearInterval(recTimer);
+  document.getElementById('rec-btn').classList.remove('active','rec');
+  document.getElementById('rec-btn').textContent = '⏺ REC';
+  document.getElementById('stop-btn').disabled = true;
+});
+
+document.getElementById('play-rec-btn').addEventListener('click', () => {
+  if (!recAudio) return;
+  recAudio.currentTime = 0;
+  recAudio.play();
+});
+
+document.getElementById('dl-btn').addEventListener('click', () => {
+  if (!lastRecBlob) return;
+  const now = new Date();
+  const ts = now.getFullYear().toString() +
+    String(now.getMonth()+1).padStart(2,'0') +
+    String(now.getDate()).padStart(2,'0') + '_' +
+    String(now.getHours()).padStart(2,'0') +
+    String(now.getMinutes()).padStart(2,'0') +
+    String(now.getSeconds()).padStart(2,'0');
+  const ext = lastRecBlob.type.includes('webm') ? 'webm' : 'wav';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(lastRecBlob);
+  a.download = `soundgo_mixtura_${ts}.${ext}`;
+  a.click();
+});
+
+// ─────────────────────────────────────────────
+// 9. OSCILLOSCOPE
+// ─────────────────────────────────────────────
+const scopeCanvas = document.getElementById('scope-canvas');
+const scopeCtx = scopeCanvas.getContext('2d');
+
+function drawScope() {
+  requestAnimationFrame(drawScope);
+  if (!analyser) {
+    scopeCtx.fillStyle = '#030810';
+    scopeCtx.fillRect(0,0,scopeCanvas.width, scopeCanvas.height);
+    return;
+  }
+  const bufLen = analyser.frequencyBinCount;
+  const buf = new Uint8Array(bufLen);
+  analyser.getByteTimeDomainData(buf);
+
+  const W = scopeCanvas.width, H = scopeCanvas.height;
+  scopeCtx.fillStyle = '#030810';
+  scopeCtx.fillRect(0,0,W,H);
+
+  // Grid lines
+  scopeCtx.strokeStyle = 'rgba(0,255,231,0.08)';
+  scopeCtx.lineWidth = 0.5;
+  for (let y = H/4; y < H; y += H/4) {
+    scopeCtx.beginPath(); scopeCtx.moveTo(0,y); scopeCtx.lineTo(W,y); scopeCtx.stroke();
+  }
+  scopeCtx.beginPath(); scopeCtx.moveTo(0,H/2); scopeCtx.lineTo(W,H/2); scopeCtx.stroke();
+
+  // Waveform
+  scopeCtx.beginPath();
+  scopeCtx.strokeStyle = '#00ffe7';
+  scopeCtx.lineWidth = 1.5;
+  scopeCtx.shadowBlur = 6;
+  scopeCtx.shadowColor = '#00ffe7';
+  const sliceW = W / bufLen;
+  let x = 0;
+  for (let i = 0; i < bufLen; i++) {
+    const v = buf[i] / 128.0;
+    const y = v * H / 2;
+    if (i === 0) scopeCtx.moveTo(x, y); else scopeCtx.lineTo(x, y);
+    x += sliceW;
+  }
+  scopeCtx.stroke();
+  scopeCtx.shadowBlur = 0;
+
+  // VU
+  let sum = 0;
+  for (let i = 0; i < bufLen; i++) sum += Math.abs(buf[i] - 128);
+  const rms = sum / bufLen / 128 * 100;
+  document.getElementById('vu-bar').style.width = Math.min(rms * 3, 100) + '%';
+}
+drawScope();
+
+// ─────────────────────────────────────────────
+// 10. LOOP SEQUENCER
+// ─────────────────────────────────────────────
+const loopSlots = Array.from(document.querySelectorAll('.loop-slot'));
+const loopPlayBtn = document.getElementById('loop-play-btn');
+const loopClearBtn = document.getElementById('loop-clear-btn');
+let loopData = [null, null, null, null]; // {idx, name}
+let loopRecording = false;
+let loopStep = 0;
+let loopPlaying = false;
+let loopTimeout = null;
+
+function loopRecord(padIdx, name) {
+  if (!loopRecording) return;
+  // find first empty slot
+  for (let i = 0; i < 4; i++) {
+    if (!loopData[i]) {
+      loopData[i] = { idx: padIdx, name };
+      loopSlots[i].textContent = name;
+      loopSlots[i].classList.add('filled');
+      if (i === 3) { loopRecording = false; showToast('Loop grabado ✓'); }
+      return;
+    }
+  }
+}
+
+loopPlayBtn.addEventListener('click', () => {
+  initAudio();
+  if (loopData.every(d => !d)) {
+    // Start recording loop
+    loopData = [null,null,null,null];
+    loopSlots.forEach(s => { s.textContent = '—'; s.classList.remove('filled','playing'); });
+    loopRecording = true;
+    showToast('Toca 4 acordes para el loop');
+    return;
+  }
+  loopPlaying = !loopPlaying;
+  loopPlayBtn.classList.toggle('playing', loopPlaying);
+  loopPlayBtn.textContent = loopPlaying ? '⏹' : '▶';
+  if (loopPlaying) playLoopStep(); else {
+    clearTimeout(loopTimeout);
+    loopSlots.forEach(s => s.classList.remove('playing'));
+  }
+});
+
+function playLoopStep() {
+  if (!loopPlaying) return;
+  loopSlots.forEach(s => s.classList.remove('playing'));
+  const d = loopData[loopStep];
+  if (d) {
+    triggerPad(d.idx, 'loop');
+    loopSlots[loopStep].classList.add('playing');
+  }
+  loopStep = (loopStep + 1) % 4;
+  loopTimeout = setTimeout(playLoopStep, 1200);
+}
+
+loopClearBtn.addEventListener('click', () => {
+  clearTimeout(loopTimeout);
+  loopPlaying = false; loopRecording = false;
+  loopData = [null,null,null,null]; loopStep = 0;
+  loopSlots.forEach(s => { s.textContent='—'; s.classList.remove('filled','playing'); });
+  loopPlayBtn.classList.remove('playing');
+  loopPlayBtn.textContent = '▶';
+});
+
+// ─────────────────────────────────────────────
+// 11. PRESETS (localStorage)
+// ─────────────────────────────────────────────
+let activePresetSlot = -1;
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  const slot = parseInt(btn.dataset.slot);
+  const saved = localStorage.getItem(`soundgo_preset_${slot}`);
+  if (saved) btn.classList.add('saved');
+
+  btn.addEventListener('click', () => {
+    const data = localStorage.getItem(`soundgo_preset_${slot}`);
+    if (data) {
+      const p = JSON.parse(data);
+      loadPreset(p);
+      activePresetSlot = slot;
+      showToast(`Preset ${slot+1} cargado`);
+    } else {
+      activePresetSlot = slot;
+      showToast(`Seleccionado P${slot+1} — pulsa GUARDAR`);
+    }
+  });
+});
+
+document.getElementById('save-preset-btn').addEventListener('click', () => {
+  if (activePresetSlot < 0) { showToast('Selecciona un preset primero'); return; }
+  const p = { ...state };
+  localStorage.setItem(`soundgo_preset_${activePresetSlot}`, JSON.stringify(p));
+  document.querySelector(`.preset-btn[data-slot="${activePresetSlot}"]`).classList.add('saved');
+  showToast(`Preset ${activePresetSlot+1} guardado ✓`);
+});
+
+document.getElementById('clear-preset-btn').addEventListener('click', () => {
+  if (activePresetSlot < 0) { showToast('Selecciona un preset primero'); return; }
+  localStorage.removeItem(`soundgo_preset_${activePresetSlot}`);
+  document.querySelector(`.preset-btn[data-slot="${activePresetSlot}"]`).classList.remove('saved');
+  showToast(`Preset ${activePresetSlot+1} borrado`);
+});
+
+function loadPreset(p) {
+  state.scale = p.scale; document.getElementById('scale-sel').value = p.scale;
+  state.styleA = p.styleA; document.getElementById('style-sel').value = p.styleA;
+  state.styleB = p.styleB; document.getElementById('style2-sel').value = p.styleB;
+  state.cross = p.cross;
+  document.getElementById('crossfader').value = p.cross;
+  updateSliderBg(document.getElementById('crossfader'));
+  document.getElementById('cross-val').textContent = `A: ${100-p.cross}% / B: ${p.cross}%`;
+  state.freq = p.freq;
+  document.getElementById('freq-slider').value = p.freq;
+  updateSliderBg(document.getElementById('freq-slider'));
+  document.getElementById('freq-val').textContent = `${p.freq} Hz — ${freqToNote(p.freq)}`;
+  state.vol = p.vol;
+  document.getElementById('vol-slider').value = p.vol;
+  updateSliderBg(document.getElementById('vol-slider'));
+  document.getElementById('vol-val').textContent = `${p.vol}%`;
+  state.vinyl = p.vinyl;
+  document.getElementById('vinyl-chk').checked = p.vinyl;
+  if (masterGain) masterGain.gain.value = p.vol/100;
+  updatePadNames();
+}
+
+// ─────────────────────────────────────────────
+// 12. MEDIAPIPE HANDS
+// ─────────────────────────────────────────────
+const videoEl = document.getElementById('cam-video');
+const camCanvas = document.getElementById('cam-canvas');
+const camCtx = camCanvas.getContext('2d');
+const camStatus = document.getElementById('cam-status');
+
+let handDetectionEnabled = false;
+let lastHandFrame = 0;
+const HAND_FPS_LIMIT = 15;
+let prevFingerPad = -1;
+
+function initMediaPipe() {
+  if (!window.Hands) {
+    camStatus.textContent = 'NO MEDIAPIPE';
+    enableMouseFallback();
+    return;
+  }
+
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 0, // lite
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.5,
+  });
+
+  hands.onResults(onHandResults);
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
+    audio: false,
+  }).then(stream => {
+    videoEl.srcObject = stream;
+    videoEl.onloadedmetadata = () => {
+      camCanvas.width = videoEl.videoWidth;
+      camCanvas.height = videoEl.videoHeight;
+    };
+    handDetectionEnabled = true;
+    camStatus.textContent = 'CAM OK';
+
+    // Use Camera helper for looping
+    let frameCount = 0;
+    const processFrame = async () => {
+      if (!handDetectionEnabled) return;
+      const now = performance.now();
+      if (now - lastHandFrame > 1000 / HAND_FPS_LIMIT) {
+        lastHandFrame = now;
+        await hands.send({ image: videoEl });
+      }
+      requestAnimationFrame(processFrame);
+    };
+    videoEl.addEventListener('loadeddata', () => {
+      processFrame();
+    });
+  }).catch(err => {
+    camStatus.textContent = 'NO CAM';
+    console.warn('Camera denied:', err);
+    enableMouseFallback();
+  });
+}
+
+function onHandResults(results) {
+  const W = camCanvas.width, H = camCanvas.height;
+  camCtx.clearRect(0, 0, W, H);
+
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    prevFingerPad = -1;
+    return;
+  }
+
+  camStatus.textContent = '✋ HAND';
+  const landmarks = results.multiHandLandmarks[0];
+
+  // Draw skeleton
+  if (window.drawConnectors && window.HAND_CONNECTIONS) {
+    drawConnectors(camCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(0,255,231,0.4)', lineWidth: 1 });
+    drawLandmarks(camCtx, landmarks, { color: '#00ffe7', lineWidth: 1, radius: 2 });
+  }
+
+  // Index fingertip = landmark 8
+  const tip = landmarks[8];
+  const tx = tip.x * W;
+  const ty = tip.y * H;
+
+  // Glowing dot on fingertip
+  camCtx.beginPath();
+  camCtx.arc(tx, ty, 6, 0, Math.PI*2);
+  camCtx.fillStyle = '#ff6b35';
+  camCtx.shadowBlur = 12;
+  camCtx.shadowColor = '#ff6b35';
+  camCtx.fill();
+  camCtx.shadowBlur = 0;
+
+  // Map finger pos to pad grid
+  const grid = document.getElementById('pad-grid');
+  const gridRect = grid.getBoundingClientRect();
+  const camRect = camCanvas.getBoundingClientRect();
+
+  // Convert camCanvas coords to screen coords (accounting for CSS mirror)
+  // Video is mirrored, so tip.x is already flipped relative to real world
+  const screenX = camRect.left + (1 - tip.x) * camRect.width;
+  const screenY = camRect.top + tip.y * camRect.height;
+
+  // Find which pad is under finger
+  let hitPad = -1;
+  pads.forEach((pad, i) => {
+    const r = pad.getBoundingClientRect();
+    // Expand hit area slightly
+    if (screenX >= r.left - 5 && screenX <= r.right + 5 &&
+        screenY >= r.top - 5 && screenY <= r.bottom + 5) {
+      hitPad = i;
+    }
+  });
+
+  // Highlight hovered pad
+  pads.forEach((p, i) => {
+    if (i === hitPad) p.classList.add('finger-hover');
+    else p.classList.remove('finger-hover');
+  });
+
+  if (hitPad >= 0 && hitPad !== prevFingerPad) {
+    prevFingerPad = hitPad;
+    triggerPad(hitPad, 'hand');
+  }
+}
+
+function enableMouseFallback() {
+  camStatus.textContent = 'MOUSE MODE';
+}
+
+// ─────────────────────────────────────────────
+// 13. TOAST
+// ─────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ─────────────────────────────────────────────
+// 14. INIT
+// ─────────────────────────────────────────────
+updatePadNames();
+
+// Unlock audio on first gesture (autoplay policy)
+document.addEventListener('click', () => { initAudio(); }, { once: true });
+document.addEventListener('touchstart', () => { initAudio(); }, { once: true });
+
+// Start MediaPipe
+window.addEventListener('load', () => {
+  setTimeout(initMediaPipe, 500);
+});
+
+// Resize scope canvas
+function resizeScope() {
+  const w = scopeCanvas.parentElement.clientWidth - 16;
+  scopeCanvas.width = Math.max(w, 100);
+  scopeCanvas.height = 50;
+}
+window.addEventListener('resize', resizeScope);
+resizeScope();
+
+showToast('SOUNDGO·MIXTURA — Ready ✓');
+</script>
+</body>
+</html>

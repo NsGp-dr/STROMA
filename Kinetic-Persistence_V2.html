@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STROMA · MANIFOLD (V3 Integrated)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESIGN TOKENS — Estética Cyber-Laboratorio de Coherencia
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #080c10;
+  --surface:   #0d1318;
+  --surface2:  #141b22;
+  --border:    #1a2530;
+  --text:      #b0c4d4;
+  --text-dim:  #334455;
+  --text-mid:  #667788;
+  
+  /* Paleta Analítica Cruzada (Mapeo STROMA) */
+  --left:      #f0c040;   /* Izquierda (Acordes) - Amber */
+  --left-glow: rgba(240,192,64,0.4);
+  --left-dim:  rgba(240,192,64,0.08);
+  
+  --right:     #00e5ff;   /* Derecha (Melodía / Manifold) - Cyan */
+  --right-glow:rgba(0,229,255,0.4);
+  --right-dim: rgba(0,229,255,0.08);
+  
+  --accent-copular: #e040fb; /* Púrpura (Métrica de Dependencia) */
+  --accent-energy:  #76ff03; /* Verde Lima (Onset / Energía) */
+}
+
+* { box-sizing: border-box; margin:0; padding:0; user-select:none; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  overflow: hidden;
+  height: 100vh; width:100vw;
+}
+
+/* Canvas Layout */
+#canvas-ui {
+  position: absolute; top:0; left:0; width:100%; height:100%; z-index: 10;
+  pointer-events: none;
+}
+#canvas-mesh {
+  position: absolute; top:0; left:0; width:100%; height:100%; z-index: 5;
+  opacity: 0.85; pointer-events: none;
+}
+#webcam-container {
+  position: absolute; bottom: 20px; left: 20px; width: 160px; height: 120px;
+  border-radius: 6px; border: 1px solid var(--border); overflow: hidden;
+  background: #000; z-index: 40; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+#webcam {
+  width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);
+  opacity: 0.4;
+}
+
+/* HUD Superior e Inferior al estilo STROMA */
+.hud-panel {
+  position: absolute; left: 0; width: 100%;
+  background: rgba(13,19,24,0.85); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border); z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; font-size: 11px; letter-spacing: 0.05em;
+}
+.hud-top { top: 0; height: 48px; }
+.hud-bottom { bottom: 0; height: 40px; border-bottom: none; border-top: 1px solid var(--border); }
+
+.hud-brand { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; color: #fff; display: flex; align-items: center; gap: 8px; }
+.hud-brand span { color: var(--right); font-size: 10px; font-family: 'JetBrains Mono'; font-weight: 400; border: 1px solid var(--right-dim); padding: 1px 4px; border-radius: 3px; }
+
+.hud-group { display: flex; align-items: center; gap: 24px; }
+.hud-metric { display: flex; align-items: center; gap: 8px; }
+.hud-label { color: var(--text-mid); }
+.hud-value { color: #fff; font-weight: 500; }
+.hud-value.cyan { color: var(--right); }
+.hud-value.amber { color: var(--left); }
+.hud-value.purple { color: var(--accent-copular); }
+
+/* Controles de la Interfaz Interactivos */
+.control-btn {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 12px; font-family: 'JetBrains Mono';
+  font-size: 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s;
+}
+.control-btn:hover { border-color: var(--text-mid); color: #fff; }
+.control-btn.active { background: var(--right-dim); border-color: var(--right); color: var(--right); }
+
+/* Toast */
+#toast {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  background: var(--surface2); border: 1px solid var(--border); color: #fff;
+  padding: 8px 16px; font-size: 11px; border-radius: 4px; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+#toast.show { opacity: 1; }
+
+/* Eje divisorio del Manifold */
+.axis-divider {
+  position: absolute; left: 50%; top: 48px; bottom: 40px; width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--border) 15%, var(--border) 85%, transparent);
+  z-index: 2; pointer-events: none;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="toast">Iniciando sistema...</div>
+
+<div class="hud-panel hud-top">
+  <div class="hud-brand">STROMA <span>MANIFOLD V3</span></div>
+  <div class="hud-group">
+    <div class="hud-metric">
+      <span class="hud-label">SCALE:</span>
+      <select id="scale-select" class="control-btn" style="padding: 2px 8px;"></select>
+    </div>
+    <div class="hud-metric">
+      <span class="hud-label">BASE OCTAVE:</span>
+      <button class="control-btn" id="oct-down">-</button>
+      <span id="oct-disp" class="hud-value amber">4</span>
+      <button class="control-btn" id="oct-up">+</button>
+    </div>
+    <button id="btn-audio" class="control-btn active">AUDIO ON</button>
+  </div>
+</div>
+
+<canvas id="canvas-mesh"></canvas>
+<canvas id="canvas-ui"></canvas>
+<div class="axis-divider"></div>
+
+<div id="webcam-container">
+  <video id="webcam" autoplay playsinline muted></video>
+</div>
+
+<div class="hud-panel hud-bottom">
+  <div class="hud-group">
+    <div class="hud-metric"><span class="hud-label">ENGINE:</span><span class="hud-value" style="color: var(--accent-energy)">LIVE</span></div>
+    <div class="hud-metric"><span class="hud-label">COHERENCE PHASE:</span><span id="metric-coherence" class="hud-value purple">0.000</span></div>
+  </div>
+  <div class="hud-group">
+    <div class="hud-metric"><span class="hud-label">L-CHORDS DETECTED:</span><span id="lbl-l-status" class="hud-value amber">0</span></div>
+    <div class="hud-metric"><span class="hud-label">R-ORBITAL HOVER:</span><span id="lbl-r-status" class="hud-value cyan">NONE</span></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN LOGICAL / MATEMÁTICA
+// ─────────────────────────────────────────────────────────────────────────────
+const SCALES = {
+  "Eolian (Minor)": [0, 2, 3, 5, 7, 8, 10],
+  "Dorian Mode":    [0, 2, 3, 5, 7, 9, 10],
+  "Phrygian Domin": [0, 1, 4, 5, 7, 8, 10],
+  "Pentatonic Min": [0, 3, 5, 7, 10],
+  "Lydian Modern":  [0, 2, 4, 6, 7, 9, 11]
+};
+
+const LEFT_DEGREES = [0, 5, 3, 6, 1, 4, 2, 7, 0, 4, 3, 5, 6, 2, 1, 7];
+const MELODY_COUNT = 14; // Cantidad de notas distribuidas en el Manifold orbital derecho
+
+const state = {
+  scale: "Eolian (Minor)",
+  baseFreq: 220, // A3 base analítica
+  baseOct: 4,
+  audioEnabled: true,
+  vol: 0.35
+};
+
+// Elementos de la interfaz y dimensiones de pantalla
+let canvasUI, ctxM, canvasMesh, ctxS;
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+let chordZones = [];
+let melodyOrbs = [];
+let handPos = { 'L': [], 'R': [] }; // Datos limpios de coordenadas procesadas
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOTOR DE AUDIO (WEB AUDIO API RIGOROSA)
+// ─────────────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let masterGain = null;
+const activeNodes = new Map(); // Almacén dinámico de osciladores por id de zona/nota
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.setValueAtTime(state.vol, audioCtx.currentTime);
+  masterGain.connect(audioCtx.destination);
+}
+
+function ensureAudio() {
+  if(!audioCtx) initAudio();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(id, freq, type='sine', dynamicGain=0.15) {
+  if(!state.audioEnabled) return;
+  ensureAudio();
+  
+  if (activeNodes.has(id)) return; // Evitar disparos redundantes redundantes
+
+  const osc = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  
+  // Ataque analítico suave contra clicks exponenciales
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(dynamicGain, audioCtx.currentTime + 0.04);
+  
+  osc.connect(gainNode);
+  gainNode.connect(masterGain);
+  osc.start();
+  
+  activeNodes.set(id, { osc, gainNode });
+}
+
+function stopTone(id) {
+  if (activeNodes.has(id)) {
+    const { osc, gainNode } = activeNodes.get(id);
+    try {
+      // Release musical elegante para evitar truncamiento brusco de la fase
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+      setTimeout(() => {
+        try { osc.stop(); osc.disconnect(); gainNode.disconnect(); } catch(e){}
+      }, 160);
+    } catch(e) {}
+    activeNodes.delete(id);
+  }
+}
+
+// Transformación matemática de frecuencia a representación simbólica legible
+function freqToNoteName(f) {
+  const notes = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const i = Math.round(12 * Math.log2(f / 440)) + 69;
+  return notes[i % 12];
+}
+
+function getScaleChordLabel(degIdx, scaleName) {
+  const sc = SCALES[scaleName];
+  const step = degIdx % sc.length;
+  const num = sc[step];
+  const labels = ["I","II","III","IV","V","VI","VII"];
+  let base = labels[step % labels.length];
+  // Modificadores de cualidad tonal simplificados
+  if([3,8,10].includes(num)) base += "min";
+  if([6,11].includes(num)) base += "dim";
+  return base;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISEÑO GEOMÉTRICO ABSOLUTO Y REESTRUCTURADO DEL MANIFOLD
+// ─────────────────────────────────────────────────────────────────────────────
+function buildZones() {
+  chordZones = [];
+  melodyOrbs = [];
+
+  const LW = W * 0.5;
+  const sc = SCALES[state.scale];
+
+  // ── MANIFOLD IZQUIERDO (ANILLOS DE ACORDES CONCÉNTRICOS) ──
+  const ringDefs = [
+    { count: 8, rRing: Math.min(LW * 0.38, H * 0.32), startIdx: 0 },
+    { count: 8, rRing: Math.min(LW * 0.20, H * 0.17), startIdx: 8 },
+  ];
+  
+  let zIdx = 0;
+  ringDefs.forEach(ring => {
+    for(let i=0; i<ring.count; i++) {
+      const angle = (i / ring.count) * Math.PI * 2 - Math.PI / 2;
+      const cx = LW * 0.5 + Math.cos(angle) * ring.rRing;
+      const cy = H * 0.5  + Math.sin(angle) * ring.rRing;
+      const r  = ring.rRing * 0.22 + 10;
+      
+      const degIdx = LEFT_DEGREES[zIdx % LEFT_DEGREES.length];
+      const rootHz = state.baseFreq * Math.pow(2, (sc[degIdx % sc.length] + (state.baseOct - 4) * 12) / 12);
+      
+      chordZones.push({
+        cx, cy, r, degIdx, id: `chord_${zIdx}`,
+        label: getScaleChordLabel(degIdx, state.scale),
+        noteFreq: rootHz,
+        active: false, glow: 0, fingerIds: new Set()
+      });
+      zIdx++;
+    }
+  });
+
+  // ── MANIFOLD DERECHO (CÍRCULO DE NOTAS ORBITALES - REDISEÑO FIJO) ──
+  const RX0 = W * 0.5;
+  const RW  = W * 0.5;
+  
+  const circleCX = RX0 + RW * 0.5;
+  const circleCY = H * 0.5;
+  const circleR  = Math.min(RW * 0.38, H * 0.38); // El riel de la escala invariante
+
+  for(let i=0; i<MELODY_COUNT; i++) {
+    const step = i % sc.length;
+    const oct  = Math.floor(i / sc.length);
+    const semi = sc[step] + oct * 12;
+    // Frecuencias dispuestas matemáticamente paso a paso de manera ascendente
+    const freq = state.baseFreq * Math.pow(2, (semi + state.baseOct * 12 - 12) / 12);
+
+    // Distribución angular perfecta y legible (Sentido horario iniciando desde el Norte)
+    const angle = (i / MELODY_COUNT) * Math.PI * 2 - Math.PI / 2;
+    
+    const cx0 = circleCX + Math.cos(angle) * circleR;
+    const cy0 = circleCY + Math.sin(angle) * circleR;
+
+    melodyOrbs.push({
+      cx: cx0, cy: cy0,
+      r: 14 + (oct * 2), // El tamaño de la celda incrementa sutilmente con la octava
+      id: `melody_${i}`,
+      label: freqToNoteName(freq),
+      freq: freq,
+      active: false,
+      glow: 0,
+      hovered: false,
+      fingerIds: new Set()
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIPELINE DE DETECCIÓN GESTUAL (MEDIAPIPE INTERACTION)
+// ─────────────────────────────────────────────────────────────────────────────
+function initMediaPipe() {
+  const video = document.getElementById('webcam');
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.55,
+    minTrackingConfidence: 0.55
+  });
+
+  hands.onResults((results) => {
+    // Reset temporal de las posiciones de dedos interactivos
+    handPos['L'] = [];
+    handPos['R'] = [];
+
+    if (results.multiHandLandmarks && results.multiHandedness) {
+      for (let h = 0; h < results.multiHandLandmarks.length; h++) {
+        const landmarks = results.multiHandLandmarks[h];
+        // MediaPipe invierte el lado debido al modo espejo original, corregimos semánticamente:
+        const detectedSide = results.multiHandedness[h].label === 'Left' ? 'R' : 'L';
+        
+        // Extraemos los índices del dedo Índice (Landmark 8) y Pulgar (Landmark 4) para pinzamientos o precisión
+        const indexFinger = landmarks[8];
+        const thumbFinger = landmarks[4];
+
+        if(indexFinger) {
+          // Mapeo directo a coordenadas de píxeles en pantalla completa
+          const sx = (1 - indexFinger.x) * W; 
+          const sy = indexFinger.y * H;
+          
+          // Guardamos el punto de contacto cinético
+          handPos[detectedSide].push({ sx, sy, tx: thumbFinger.x, ty: thumbFinger.y });
+        }
+      }
+    }
+    evalInteractions();
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => { await hands.send({ image: video }); },
+    width: 320, height: 240
+  });
+  camera.start().then(() => showToast("Captura de video activa. Muestra tus manos."));
+}
+
+// Evaluador lógico de colisiones espaciales e inferencia musical
+function evalInteractions() {
+  // --- PROCESAR PARTE IZQUIERDA: CHORDS ---
+  chordZones.forEach(z => {
+    let currentCollision = false;
+    let currentFingerIds = new Set();
+
+    handPos['L'].forEach((f, fIdx) => {
+      const dist = Math.hypot(f.sx - z.cx, f.sy - z.cy);
+      if(dist < z.r) {
+        currentCollision = true;
+        currentFingerIds.add(`L_${fIdx}`);
+      }
+    });
+
+    z.active = currentCollision;
+    if(z.active) {
+      z.glow = Math.min(1.0, z.glow + 0.15);
+      // Disparador armónico de stroma (Ondas triangulares densas para acordes base)
+      playTone(z.id, z.noteFreq, 'triangle', 0.12);
+    } else {
+      z.glow = Math.max(0.0, z.glow - 0.08);
+      stopTone(z.id);
+    }
+  });
+
+  // --- PROCESAR PARTE DERECHA: ORBES DE MELODÍA ORBITALES ---
+  let activeHoverName = "NONE";
+  melodyOrbs.forEach(o => {
+    let currentCollision = false;
+    let isNear = false;
+
+    handPos['R'].forEach((f, fIdx) => {
+      const dist = Math.hypot(f.sx - o.cx, f.sy - o.cy);
+      
+      // Inducción visual por proximidad (Radio de 130px antes de la colisión directa)
+      if(dist < 130) {
+        isNear = true;
+      }
+      // Activación/Pulsación física de la celda de la nota
+      if(dist < o.r * 1.5) { 
+        currentCollision = true;
+      }
+    });
+
+    o.hovered = isNear;
+    o.active = currentCollision;
+
+    if(o.active) {
+      o.glow = Math.min(1.0, o.glow + 0.2);
+      // Disparador melódico puro de precisión (Senoidal cristalina)
+      playTone(o.id, o.freq, 'sine', 0.18);
+      activeHoverName = o.label;
+    } else {
+      o.glow = Math.max(0.0, o.glow - 0.05);
+      stopTone(o.id);
+      if (o.hovered && activeHoverName === "NONE") {
+        activeHoverName = `${o.label} (NEAR)`;
+      }
+    }
+  });
+
+  // Actualizar indicadores del HUD analítico en tiempo real
+  const activeChordsCount = chordZones.filter(z => z.active).length;
+  document.getElementById('lbl-l-status').textContent = activeChordsCount;
+  document.getElementById('lbl-l-status').style.color = activeChordsCount > 0 ? 'var(--left)' : '#fff';
+  
+  document.getElementById('lbl-r-status').textContent = activeHoverName;
+  document.getElementById('lbl-r-status').style.color = activeHoverName !== "NONE" ? 'var(--right)' : '#fff';
+
+  // Simulación dinámica de métrica copular basada en la correlación geométrica inter-manual
+  if(handPos['L'].length > 0 && handPos['R'].length > 0) {
+    const pseudoCoherence = Math.abs(Math.sin((handPos['L'][0].sy - handPos['R'][0].sy) / 100)).toFixed(3);
+    document.getElementById('metric-coherence').textContent = pseudoCoherence;
+  } else {
+    document.getElementById('metric-coherence').textContent = "0.000";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAPA VISUAL DE RENDERIZADO (ESTÉTICA DE INTERFAZ VECTORIAL)
+// ─────────────────────────────────────────────────────────────────────────────
+function setupCanvases() {
+  canvasUI = document.getElementById('canvas-ui');
+  ctxM = canvasUI.getContext('2d');
+  canvasMesh = document.getElementById('canvas-mesh');
+  ctxS = canvasMesh.getContext('2d');
+
+  resize();
+}
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  
+  canvasUI.width = W;   canvasUI.height = H;
+  canvasMesh.width = W; canvasMesh.height = H;
+
+  buildZones();
+  drawBackgroundGrid();
+}
+
+function drawBackgroundGrid() {
+  // Pinta la rejilla topológica de fondo estática de la workstation
+  ctxS.clearRect(0,0,W,H);
+  ctxS.strokeStyle = 'rgba(26, 37, 48, 0.25)';
+  ctxS.lineWidth = 1;
+
+  const gridSize = 40;
+  for(let x=0; x<W; x+=gridSize) {
+    ctxS.beginPath(); ctxS.moveTo(x,0); ctxS.lineTo(x,H); ctxS.stroke();
+  }
+  for(let y=0; y<H; y+=gridSize) {
+    ctxS.beginPath(); ctxS.moveTo(0,y); ctxS.lineTo(W,y); ctxS.stroke();
+  }
+}
+
+function renderLoop() {
+  ctxM.clearRect(0, 0, W, H);
+
+  // ── 1. DIBUJAR CAPA IZQUIERDA: CHORDS ──
+  chordZones.forEach(z => {
+    const colLeft = '240,192,64'; // Amber
+    
+    // Aura de resonancia matemática
+    if(z.glow > 0.01) {
+      const radGrd = ctxM.createRadialGradient(z.cx, z.cy, z.r * 0.5, z.cx, z.cy, z.r * (1 + z.glow * 1.5));
+      radGrd.addColorStop(0, `rgba(${colLeft}, ${z.glow * 0.15})`);
+      radGrd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctxM.beginPath(); ctxM.arc(z.cx, z.cy, z.r * (1 + z.glow * 1.5), 0, Math.PI*2);
+      ctxM.fillStyle = radGrd; ctxM.fill();
+    }
+
+    // Perímetro exterior plano
+    ctxM.beginPath();
+    ctxM.arc(z.cx, z.cy, z.r, 0, Math.PI*2);
+    ctxM.strokeStyle = z.active ? `rgba(${colLeft}, 1)` : `rgba(${colLeft}, 0.25)`;
+    ctxM.lineWidth = z.active ? 2 : 1;
+    ctxM.stroke();
+
+    if(z.active) {
+      ctxM.fillStyle = `rgba(${colLeft}, 0.06)`;
+      ctxM.fill();
+    }
+
+    // Tipografía científica de la celda
+    ctxM.font = `500 ${z.active ? '12px' : '10px'} 'JetBrains Mono'`;
+    ctxM.fillStyle = z.active ? `rgba(${colLeft}, 1)` : 'rgba(176,196,212,0.4)';
+    ctxM.textAlign = 'center'; ctxM.textBaseline = 'middle';
+    ctxM.fillText(z.label, z.cx, z.cy);
+  });
+
+  // ── 2. DIBUJAR CAPA DERECHA: REDISEÑO MANIFOLD ORBITAL CONCÉNTRICO ──
+  const RX0 = W * 0.5;
+  const RW  = W * 0.5;
+  const circleCX = RX0 + RW * 0.5;
+  const circleCY = H * 0.5;
+  const circleR  = Math.min(RW * 0.38, H * 0.38);
+  const colRight = '0,229,255'; // Cyan analítico
+
+  // RIEL VECTORIAL DE GUÍA DE LA ESCALA (Legibilidad absoluta de trayectorias)
+  ctxM.beginPath();
+  ctxM.arc(circleCX, circleCY, circleR, 0, Math.PI * 2);
+  ctxM.strokeStyle = `rgba(${colRight}, 0.12)`;
+  ctxM.lineWidth = 1;
+  ctxM.setLineDash([4, 6]); // Línea discontinua estilo HUD de laboratorio
+  ctxM.stroke();
+  ctxM.setLineDash([]); // Resetear discontinuidad para el resto de elementos
+
+  melodyOrbs.forEach(o => {
+    // Escala por inducción visual de proximidad
+    let proximityFactor = 1.0;
+    if(o.hovered)  proximityFactor = 1.25;
+    if(o.active)   proximityFactor = 1.45;
+
+    const currentR = o.r * proximityFactor;
+
+    // Resplandor del nodo melódico
+    if(o.glow > 0.01 || o.active) {
+      const grd = ctxM.createRadialGradient(o.cx, o.cy, currentR * 0.3, o.cx, o.cy, currentR * 2.2);
+      grd.addColorStop(0, `rgba(${colRight}, ${o.active ? 0.35 : o.glow * 0.15})`);
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctxM.beginPath(); ctxM.arc(o.cx, o.cy, currentR * 2.2, 0, Math.PI*2);
+      ctxM.fillStyle = grd; ctxM.fill();
+    }
+
+    // Núcleo geométrico de la nota orbital
+    ctxM.beginPath();
+    ctxM.arc(o.cx, o.cy, currentR, 0, Math.PI*2);
+    ctxM.strokeStyle = o.active ? `rgba(${colRight}, 1)` : (o.hovered ? `rgba(${colRight}, 0.65)` : `rgba(${colRight}, 0.3)`);
+    ctxM.lineWidth = o.active ? 2 : 1;
+    ctxM.stroke();
+
+    if(o.active || o.hovered) {
+      ctxM.fillStyle = o.active ? `rgba(${colRight}, 0.15)` : `rgba(${colRight}, 0.04)`;
+      ctxM.fill();
+    }
+
+    // Etiqueta simbólica de afinación fija
+    ctxM.font = `${o.active || o.hovered ? '700' : '400'} ${o.active ? 11 : 9}px 'JetBrains Mono'`;
+    ctxM.fillStyle = o.active ? `rgba(${colRight}, 1)` : (o.hovered ? 'rgba(255,255,255,0.8)' : 'rgba(176,196,212,0.4)');
+    ctxM.textAlign = 'center'; ctxM.textBaseline = 'middle';
+    ctxM.fillText(o.label, o.cx, o.cy);
+  });
+
+  // ── 3. FEEDBACK VISUAL DE LOS DEDOS SOBRE EL CANVAS ──
+  ['L', 'R'].forEach(side => {
+    const col = side === 'L' ? '240,192,64' : '0,229,255';
+    handPos[side].forEach(f => {
+      ctxM.beginPath(); ctxM.arc(f.sx, f.sy, 6, 0, Math.PI*2);
+      ctxM.fillStyle = `rgba(${col}, 0.8)`; ctxM.fill();
+      ctxM.strokeStyle = '#fff'; ctxM.lineWidth = 1.5; ctxM.stroke();
+    });
+  });
+
+  requestAnimationFrame(renderLoop);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN DE INTERFAZ DE USUARIO (UI CONTROLS)
+// ─────────────────────────────────────────────────────────────────────────────
+function setupUIControls() {
+  const scaleSel = document.getElementById('scale-select');
+  Object.keys(SCALES).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    scaleSel.appendChild(opt);
+  });
+  scaleSel.value = state.scale;
+  scaleSel.addEventListener('change', (e) => {
+    state.scale = e.target.value;
+    buildZones();
+    showToast(`Escala mutada a: ${state.scale}`);
+  });
+
+  const octDisp = document.getElementById('oct-disp');
+  document.getElementById('oct-down').addEventListener('click', () => {
+    if(state.baseOct > 1) { state.baseOct--; octDisp.textContent = state.baseOct; buildZones(); }
+  });
+  document.getElementById('oct-up').addEventListener('click', () => {
+    if(state.baseOct < 7) { state.baseOct++; octDisp.textContent = state.baseOct; buildZones(); }
+  });
+
+  const audioBtn = document.getElementById('btn-audio');
+  audioBtn.addEventListener('click', () => {
+    state.audioEnabled = !state.audioEnabled;
+    audioBtn.textContent = state.audioEnabled ? "AUDIO ON" : "AUDIO MUTED";
+    audioBtn.classList.toggle('active', state.audioEnabled);
+    if(!state.audioEnabled) {
+      activeNodes.forEach((v, k) => stopTone(k));
+    }
+  });
+
+  window.addEventListener('resize', resize);
+  
+  // Forzar activación del Audio Context en el primer gesto interactivo real
+  ['click', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => { ensureAudio(); }, { once: true });
+  });
+}
+
+// BOOTSTRAP INICIAL DE LA WORKSTATION
+window.addEventListener('load', () => {
+  setupCanvases();
+  setupUIControls();
+  initMediaPipe();
+  requestAnimationFrame(renderLoop);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SOUNDGO · KINETIC WEB V3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0b0c0e;
+  --surface:   #13161a;
+  --surface2:  #1c2029;
+  --border:    #2a2f3a;
+  --text:      #e8eaf0;
+  --text-dim:  #5a6070;
+  --text-mid:  #9aa0b0;
+  --left:      #f0c040;
+  --right:     #40c8f0;
+  --radius-sm: 6px;
+}
+[data-theme="day"] {
+  --bg:        #f2f0eb;
+  --surface:   #ffffff;
+  --surface2:  #e8e5de;
+  --border:    #c8c3b8;
+  --text:      #111214;
+  --text-dim:  #888070;
+  --text-mid:  #555050;
+  --left:      #b87800;
+  --right:     #006ea8;
+}
+
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html, body {
+  width:100%; height:100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: 48px 1fr 36px;
+  height: 100%;
+  width: 100%;
+}
+
+#header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 10;
+}
+#wordmark { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; letter-spacing: .5px; }
+#wordmark span { color: var(--left); }
+.h-sep { width:1px; height:20px; background:var(--border); }
+
+.hctl { display:flex; align-items:center; gap:6px; }
+.hctl label { font-size:10px; letter-spacing:.08em; color:var(--text-dim); }
+select {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  font-family: 'DM Mono', monospace; font-size:11px; padding: 3px 6px; border-radius: var(--radius-sm);
+}
+
+.pill {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 20px;
+  background: var(--surface2); color: var(--text-mid); font-family: 'DM Mono', monospace;
+  font-size: 11px; cursor: pointer;
+}
+.pill.on { background: var(--left); color: var(--bg); border-color: var(--left); }
+.pill.rec-on { background: #e03030; color:#fff; border-color:#e03030; animation: recpulse 1s infinite; }
+@keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.spacer { flex:1; }
+
+#instrument-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+#main-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg);
+  z-index: 10;
+}
+
+#rec-timer { color:#e03030; font-family:'DM Mono', monospace; font-size:11px; }
+#toast {
+  position:fixed; bottom:50px; left:50%; transform:translateX(-50%);
+  background:var(--text); color:var(--bg); padding:7px 18px; border-radius:20px;
+  font-size:11px; font-weight:500; opacity:0; pointer-events:none; transition:opacity .2s; z-index:999;
+}
+#toast.show { opacity:1; }
+
+#cam-video { display: none; }
+</style>
+</head>
+<body data-theme="night">
+
+<div id="app">
+  <header id="header">
+    <div id="wordmark">SOUND<span>GO</span> // MIRROR-KINETIC</div>
+    <div class="h-sep"></div>
+    <div class="hctl">
+      <label>ESCALA</label>
+      <select id="scale-sel">
+        <option value="major">Do Mayor</option>
+        <option value="minor">La Menor</option>
+        <option value="penta_maj">Penta Mayor</option>
+        <option value="penta_min">Penta Menor</option>
+      </select>
+    </div>
+    <div class="hctl">
+      <label>TIMBRE</label>
+      <select id="style-sel">
+        <option value="lofi" selected>Lo-fi</option>
+        <option value="steven">Steven U.</option>
+        <option value="piano">Piano</option>
+        <option value="organ">Órgano</option>
+        <option value="xylophone">Xilófono</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <button class="pill" id="rec-btn">⏺ REC</button>
+    <span id="rec-timer"></span>
+    <button class="pill" id="dl-btn" style="display:none">⬇ DL</button>
+    <button class="pill" id="mute-btn">VOL</button>
+    <button class="pill" id="theme-btn">☀</button>
+  </header>
+
+  <section id="instrument-container">
+    <canvas id="main-canvas"></canvas>
+  </section>
+
+  <footer id="statusbar">
+    <span id="cam-label">INICIANDO ESPEJO INTERACTIVO...</span>
+    <div class="spacer"></div>
+    <span id="debug-info">Izquierda stabile: Acordes Limpios | Derecha: Impulso de Orbes</span>
+  </footer>
+</div>
+
+<video id="cam-video" autoplay playsinline muted></video>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────
+// TEORÍA MUSICAL CORE Y PRESETS
+// ─────────────────────────────────────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const SCALES = {
+  major:     [0,2,4,5,7,9,11],
+  minor:     [0,2,3,5,7,8,10],
+  penta_maj: [0,2,4,7,9],
+  penta_min: [0,3,5,7,10],
+};
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII'];
+
+function chordIntervals(degIdx, scaleName, style) {
+  const sc = SCALES[scaleName];
+  const len = sc.length;
+  const r  = sc[degIdx % len];
+  const t3 = sc[(degIdx+2) % len] + (degIdx+2 >= len ? 12 : 0);
+  const t5 = sc[(degIdx+4) % len] + (degIdx+4 >= len ? 12 : 0);
+  const t7 = sc[(degIdx+6) % len] + (degIdx+6 >= len ? 12 : 0);
+  const t9 = sc[(degIdx+8)%len] + 12;
+  const norm = x => { let v=((x-r)%12+12)%12; return v===0?12:v; };
+  if(style==='steven')     return [0,norm(t3),norm(t5),11,14];
+  if(style==='lofi')       return [0,norm(t3),norm(t5),norm(t7),((t9-r)%12+12)%12||12];
+  if(style==='piano')      return [0,norm(t3),norm(t5),norm(t7)];
+  if(style==='organ')      return [0,7,12,19];
+  return [0,norm(t3),norm(t5)];
+}
+
+const state = {
+  scale:   'major',
+  style:   'lofi',
+  baseFreq: 220.00,
+  baseOct:  3,
+  vol:      0.70,
+  theme:    'night'
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// AUDIO SYNTH ENGINE
+// ─────────────────────────────────────────────────────────────────────────
+let ctx = null, masterGain = null, limiter = null, recDest = null;
+let activeVoices = new Map();
+
+const SYNTH = {
+  steven:    { wave:'sine',     A:.05, D:.3, S:.6, R:.5, spread:3, filt:4000, gain:.20 },
+  lofi:      { wave:'triangle', A:.07, D:.4, S:.5, R:.4, spread:8, filt:1400, gain:.22 },
+  piano:     { wave:'triangle', A:.005,D:.8, S:.1, R:.6, spread:1, filt:6000, gain:.25 },
+  organ:     { wave:'sine',     A:.04, D:.0, S:.8, R:.3, spread:0, filt:3000, gain:.18, harmonics:[1,2,3] },
+  xylophone: { wave:'sine',     A:.002,D:.15,S:.0, R:.1, spread:0, filt:10000,gain:.35 },
+};
+
+function ensureAudio() {
+  if(ctx) return;
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+  masterGain = ctx.createGain(); masterGain.gain.value = state.vol;
+  limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value=-1.5; limiter.knee.value=4; limiter.ratio.value=20;
+  masterGain.connect(limiter); limiter.connect(ctx.destination);
+  recDest = ctx.createMediaStreamDestination(); limiter.connect(recDest);
+}
+
+function playNote(key, freq, customFilterCutoff = null) {
+  if(!ctx) return;
+  const p = SYNTH[state.style];
+  const now = ctx.currentTime;
+  const nodes = [];
+
+  (p.harmonics||[1]).forEach((h,hi) => {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'lowpass';
+    flt.frequency.value = customFilterCutoff || p.filt;
+
+    osc.type = p.wave;
+    osc.frequency.value = freq * h;
+    osc.detune.value = (Math.random()-.5) * p.spread * 2;
+
+    const g = p.gain / (hi+1) / (p.harmonics||[1]).length;
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(g, now + p.A);
+    env.gain.linearRampToValueAtTime(g * p.S, now + p.A + p.D);
+
+    osc.connect(env); env.connect(flt); flt.connect(masterGain);
+    osc.start(now);
+    nodes.push({osc, env, flt});
+  });
+
+  activeVoices.set(key, { nodes, p });
+}
+
+function stopNote(key) {
+  const v = activeVoices.get(key);
+  if(!v) return;
+  const now = ctx.currentTime;
+  v.nodes.forEach(({osc, env}) => {
+    if(!env) return;
+    try {
+      env.gain.cancelScheduledValues(now);
+      env.gain.setValueAtTime(env.gain.value, now);
+      env.gain.linearRampToValueAtTime(0, now + (v.p.R||.3));
+      osc.stop(now + (v.p.R||.3) + .05);
+    } catch(e){}
+  });
+  activeVoices.delete(key);
+}
+
+function clearAllLeftVoices() {
+  for (let key of activeVoices.keys()) {
+    if (key.startsWith('L_')) {
+      stopNote(key);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DINÁMICA DE PARTÍCULAS Y CONTROL DE HISTÉRESIS DE ACORDES
+// ─────────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('main-canvas');
+const canvasCtx = canvas.getContext('2d');
+let particles = [];
+
+// Estado del centro cinético
+let centerElastic = { x: 0.5, y: 0.5, currentX: 0.5, currentY: 0.5 };
+let leftHandActive = false;
+let currentLeftChordIdx = -1;
+
+// SISTEMA DE DEBOUNCE / HISTÉRESIS PARA ACORDES LIMPIOS
+let targetChordZone = -1;
+let chordZoneCounter = 0;
+const FRAMES_TO_STABILIZE = 5; // Cuadros que debe sostener la mano en un sector antes de activar el acorde
+let lastTriggeredChord = -1;
+
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+class Particle {
+  constructor(x, y, vx, vy) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.radius = 5;
+    this.life = 1.0;
+    this.color = window.getComputedStyle(document.documentElement).getPropertyValue('--right').trim();
+  }
+  update(cx, cy, radiusBounds) {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.life -= 0.007;
+
+    let dx = this.x - cx;
+    let dy = this.y - cy;
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist >= radiusBounds - this.radius && dist < radiusBounds + 30) {
+      let nx = dx / dist;
+      let ny = dy / dist;
+      let dot = this.vx * nx + this.vy * ny;
+      
+      this.vx = (this.vx - 2 * dot * nx) * 0.95;
+      this.vy = (this.vy - 2 * dot * ny) * 0.95;
+      this.x = cx + nx * (radiusBounds - this.radius - 3);
+      this.y = cy + ny * (radiusBounds - this.radius - 3);
+
+      let angle = Math.atan2(dy, dx);
+      if(angle < 0) angle += Math.PI * 2;
+      
+      const sc = SCALES[state.scale];
+      let stepIdx = Math.floor((angle / (Math.PI * 2)) * sc.length * 2); 
+      
+      ensureAudio();
+      const oct = Math.floor(stepIdx / sc.length);
+      const step = stepIdx % sc.length;
+      const semi = sc[step] + oct * 12;
+      const freq = state.baseFreq * Math.pow(2, (semi + 12) / 12);
+      
+      const triggerKey = `particle_${Date.now()}_${Math.random()}`;
+      playNote(triggerKey, freq, 2500);
+      setTimeout(() => stopNote(triggerKey), 180);
+      
+      this.radius = 10;
+    } else {
+      if(this.radius > 4) this.radius -= 0.2;
+    }
+  }
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+    ctx.fillStyle = this.color;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = this.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENRUTAMIENTO CÁMARA & PROCESAMIENTO MEDIAPIPE ASÍNCRONO
+// ─────────────────────────────────────────────────────────────────────────
+const video = document.getElementById('cam-video');
+let lastHandData = null;
+
+const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+hands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+hands.onResults(results => { lastHandData = results; });
+
+navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, audio: false })
+  .then(stream => {
+    video.srcObject = stream;
+    video.addEventListener('loadeddata', () => {
+      document.getElementById('cam-label').textContent = "ESPEJO ACTIVO • MODO DE INMERSIÓN COMPLETA";
+      async function triggerDetection() {
+        if(video.readyState >= 2) { try { await hands.send({ image: video }); } catch(e){} }
+        setTimeout(triggerDetection, 35);
+      }
+      triggerDetection();
+    });
+  }).catch(() => {
+    document.getElementById('cam-label').textContent = "MODO DE SIMULACIÓN TÁCTIL (SIN CÁMARA)";
+  });
+
+// ─────────────────────────────────────────────────────────────────────────
+// LOOP PRINCIPAL DE RENDERIZADO (60 FPS CON VIDEO INTEGRADO)
+// ─────────────────────────────────────────────────────────────────────────
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  
+  const isDay = state.theme === 'day';
+  
+  // 1. Limpieza del fondo con estela suave (Trail Effect)
+  canvasCtx.fillStyle = isDay ? 'rgba(242,240,235,0.22)' : 'rgba(11,12,14,0.22)';
+  canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 2. DIBUJAR VIDEO EN EL FONDO (Tus manos integradas en la experiencia)
+  if (video.readyState >= 2) {
+    canvasCtx.save();
+    // Espejo horizontal para coincidir con la posición natural del cuerpo
+    canvasCtx.translate(canvas.width, 0);
+    canvasCtx.scale(-1, 1);
+    
+    // Opacidad elegante para que la cámara no encandile los gráficos interactivos
+    canvasCtx.globalAlpha = isDay ? 0.12 : 0.18;
+    canvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvasCtx.restore();
+  }
+
+  let centerWorldX = canvas.width * centerElastic.currentX;
+  let centerWorldY = canvas.height * centerElastic.currentY;
+  let webRadius = Math.min(canvas.width, canvas.height) * 0.30;
+
+  // Suavizado cinético del centro
+  if (leftHandActive) {
+    centerElastic.currentX += (centerElastic.x - centerElastic.currentX) * 0.12;
+    centerElastic.currentY += (centerElastic.y - centerElastic.currentY) * 0.12;
+  } else {
+    centerElastic.currentX += (0.5 - centerElastic.currentX) * 0.08;
+    centerElastic.currentY += (0.5 - centerElastic.currentY) * 0.08;
+  }
+
+  // 3. SECTORES GEOMÉTRICOS DE ACORDES DIATÓNICOS (Zonificación Visual)
+  let totalZones = 7; // I al VII grado de la escala
+  let leftColor = window.getComputedStyle(document.documentElement).getPropertyValue('--left').trim();
+  
+  for(let i=0; i<totalZones; i++) {
+    let startAng = (i / totalZones) * Math.PI * 2;
+    let endAng = ((i+1) / totalZones) * Math.PI * 2;
+    
+    // Iluminar sutilmente la zona donde está la mano izquierda
+    if (leftHandActive && lastTriggeredChord === i) {
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(centerWorldX, centerWorldY);
+      canvasCtx.arc(centerWorldX, centerWorldY, webRadius, startAng, endAng);
+      canvasCtx.fillStyle = isDay ? 'rgba(184,120,0,0.06)' : 'rgba(240,192,64,0.04)';
+      canvasCtx.fill();
+    }
+    
+    // Líneas divisorias polares
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(centerWorldX, centerWorldY);
+    canvasCtx.lineTo(centerWorldX + Math.cos(startAng)*webRadius, centerWorldY + Math.sin(startAng)*webRadius);
+    canvasCtx.strokeStyle = isDay ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.04)';
+    canvasCtx.stroke();
+  }
+
+  // 4. ESTRUCTURA DE POLÍGONOS DINÁMICOS DEFORMABLES
+  let steps = 4;
+  for (let s = 1; s <= steps; s++) {
+    let currentRadius = webRadius * (s / steps);
+    canvasCtx.beginPath();
+    let totalVertices = 16;
+    for (let v = 0; v <= totalVertices; v++) {
+      let angle = (v / totalVertices) * Math.PI * 2;
+      let distortion = leftHandActive ? Math.sin(angle * 4 + Date.now()*0.004) * 12 * (s/steps) : 0;
+      let vx = centerWorldX + Math.cos(angle) * (currentRadius + distortion);
+      let vy = centerWorldY + Math.sin(angle) * (currentRadius + distortion);
+      v === 0 ? canvasCtx.moveTo(vx, vy) : canvasCtx.lineTo(vx, vy);
+    }
+    canvasCtx.strokeStyle = s === steps ? leftColor : (isDay ? 'rgba(184,120,0,0.2)' : 'rgba(240,192,64,0.12)');
+    canvasCtx.lineWidth = s === steps ? 2 : 1;
+    canvasCtx.stroke();
+  }
+
+  // 5. EVALUACIÓN Y PARSEO DE TRACKING ESPACIAL
+  let frameDetectedLeftZone = -1;
+  let leftHandCoords = null;
+
+  if (lastHandData && lastHandData.multiHandLandmarks) {
+    lastHandData.multiHandLandmarks.forEach((landmarks, idx) => {
+      let label = lastHandData.multiHandedness[idx]?.label || 'Right';
+      let side = label === 'Left' ? 'R' : 'L'; // Ajuste de espejo invertido
+
+      landmarks.forEach((lm, lmId) => {
+        if ([8, 12, 16, 20].includes(lmId)) { // Dedos sensores
+          let fx = (1 - lm.x) * canvas.width;
+          let fy = lm.y * canvas.height;
+
+          // Dibujar puntos de articulaciones directamente sobre el canvas del espejo
+          canvasCtx.beginPath();
+          canvasCtx.arc(fx, fy, 7, 0, Math.PI * 2);
+          canvasCtx.fillStyle = side === 'L' ? leftColor : window.getComputedStyle(document.documentElement).getPropertyValue('--right').trim();
+          canvasCtx.fill();
+
+          if (side === 'L') {
+            leftHandCoords = { x: (1 - lm.x), y: lm.y, fx, fy };
+          } else {
+            // Mano Derecha: Generador cinético de orbes orbitales
+            if (Math.random() < 0.25) {
+              let vx = (centerWorldX - fx) * 0.035 + (Math.random() - 0.5) * 2;
+              let vy = (centerWorldY - fy) * 0.035 + (Math.random() - 0.5) * 2;
+              particles.push(new Particle(fx, fy, vx, vy));
+            }
+          }
+        }
+      });
+    });
+  }
+
+  // Lógica de histéresis estricta para la Mano Izquierda (Eliminar el ruido al cruzar zonas)
+  if (leftHandCoords) {
+    leftHandActive = true;
+    centerElastic.x = leftHandCoords.x;
+    centerElastic.y = leftHandCoords.y;
+
+    let dx = leftHandCoords.fx - centerWorldX;
+    let dy = leftHandCoords.fy - centerWorldY;
+    let angle = Math.atan2(dy, dx);
+    if(angle < 0) angle += Math.PI * 2;
+
+    frameDetectedLeftZone = Math.floor((angle / (Math.PI * 2)) * totalZones);
+
+    if (frameDetectedLeftZone === targetChordZone) {
+      chordZoneCounter++;
+      // Solo se gatilla el acorde si se ha mantenido estable suficientes cuadros consecutivos
+      if (chordZoneCounter === FRAMES_TO_STABILIZE && frameDetectedLeftZone !== lastTriggeredChord) {
+        ensureAudio();
+        clearAllLeftVoices(); // Matar acordes anteriores limpiamente
+
+        lastTriggeredChord = frameDetectedLeftZone;
+        currentLeftChordIdx = frameDetectedLeftZone;
+
+        let distToCenter = Math.sqrt(dx*dx + dy*dy);
+        let dynamicCutoff = Math.max(500, Math.min(5000, distToCenter * 9));
+
+        const sc = SCALES[state.scale];
+        const root = sc[frameDetectedLeftZone % sc.length];
+        const rootFreq = state.baseFreq * Math.pow(2, (root + (state.baseOct - 4) * 12) / 12);
+        const ivals = chordIntervals(frameDetectedLeftZone, state.scale, state.style);
+        
+        ivals.forEach((semi, i) => {
+          const freq = rootFreq * Math.pow(2, semi / 12);
+          playNote(`L_voice_${i}`, freq, dynamicCutoff);
+        });
+      }
+    } else {
+      targetChordZone = frameDetectedLeftZone;
+      chordZoneCounter = 0; // Reiniciar cuenta si se mueve erráticamente a otro sector
+    }
+  } else {
+    // Si la mano izquierda sale de pantalla, apagar los acordes de forma progresiva (sin clics rudos)
+    if (leftHandActive === true || lastTriggeredChord !== -1) {
+      clearAllLeftVoices();
+      lastTriggeredChord = -1;
+      targetChordZone = -1;
+      currentLeftChordIdx = -1;
+    }
+    leftHandActive = false;
+  }
+
+  // 6. TRASLACIÓN Y RENDERIZADO DE PARTÍCULAS DE MELODÍA
+  particles.forEach((p, pIdx) => {
+    p.update(centerWorldX, centerWorldY, webRadius);
+    p.draw(canvasCtx);
+    if (p.life <= 0) particles.splice(pIdx, 1);
+  });
+
+  // HUD Informativo del Estado Armónico
+  canvasCtx.fillStyle = isDay ? '#111214' : '#e8eaf0';
+  canvasCtx.font = "bold 13px 'Syne', sans-serif";
+  if (lastTriggeredChord !== -1) {
+    canvasCtx.fillText(`GRADO ESTABLE: Grado ${ROMAN[lastTriggeredChord]} // TIMBRE: ${state.style.toUpperCase()}`, 35, canvas.height - 35);
+  } else {
+    canvasCtx.fillText("MUEVE MANO IZQUIERDA PARA ESTABILIZAR ACORDE", 35, canvas.height - 35);
+  }
+}
+renderLoop();
+
+// ─────────────────────────────────────────────────────────────────────────
+// CONTROLADORES DE INTERFAZ Y GRABACIÓN (Estables)
+// ─────────────────────────────────────────────────────────────────────────
+let mediaRec = null, recChunks = [], recStart = 0, recInterval = null, lastBlob = null;
+const recBtn   = document.getElementById('rec-btn');
+const dlBtn    = document.getElementById('dl-btn');
+const recTimer = document.getElementById('rec-timer');
+
+recBtn.addEventListener('click', () => {
+  ensureAudio();
+  if(mediaRec && mediaRec.state==='recording') {
+    mediaRec.stop(); clearInterval(recInterval);
+    recBtn.textContent = '⏺ REC'; recBtn.classList.remove('rec-on');
+    recTimer.textContent = ''; return;
+  }
+  recChunks = [];
+  try { mediaRec = new MediaRecorder(recDest.stream, {mimeType:'audio/webm;codecs=opus'}); }
+  catch(e) { mediaRec = new MediaRecorder(recDest.stream); }
+  mediaRec.ondataavailable = e => { if(e.data.size>0) recChunks.push(e.data); };
+  mediaRec.onstop = () => {
+    lastBlob = new Blob(recChunks, {type: recChunks[0]?.type||'audio/webm'});
+    dlBtn.style.display = 'inline-block';
+    showToast('¡Sesión en espejo grabada! ✓');
+  };
+  mediaRec.start(100);
+  recBtn.textContent = '⏹ STOP'; recBtn.classList.add('rec-on');
+  recStart = Date.now();
+  recInterval = setInterval(() => {
+    const s = Math.floor((Date.now()-recStart)/1000);
+    recTimer.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  }, 1000);
+});
+
+dlBtn.addEventListener('click', () => {
+  if(!lastBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(lastBlob);
+  a.download = `kinetic_mirror_${Date.now()}.webm`;
+  a.click();
+});
+
+let isMuted = false;
+document.getElementById('mute-btn').addEventListener('click', () => {
+  ensureAudio(); isMuted = !isMuted;
+  masterGain.gain.setTargetAtTime(isMuted?0:state.vol, ctx.currentTime, .05);
+  document.getElementById('mute-btn').classList.toggle('on', isMuted);
+});
+
+document.getElementById('scale-sel').addEventListener('change', e => { state.scale = e.target.value; });
+document.getElementById('style-sel').addEventListener('change', e => { state.style = e.target.value; });
+document.getElementById('theme-btn').addEventListener('click', () => {
+  state.theme = state.theme==='night' ? 'day' : 'night';
+  document.body.dataset.theme = state.theme;
+  document.getElementById('theme-btn').textContent = state.theme==='night' ? '☀' : '🌙';
+});
+
+// Fallback interactivo por si se requiere simular con puntero ordinario
+canvas.addEventListener('pointermove', e => {
+  if(e.buttons === 1) {
+    leftHandActive = true;
+    centerElastic.x = e.clientX / canvas.width;
+    centerElastic.y = e.clientY / canvas.height;
+    if(Math.random() < 0.3) {
+       particles.push(new Particle(e.clientX, e.clientY, (Math.random()-0.5)*7, (Math.random()-0.5)*7));
+    }
+  }
+});
+canvas.addEventListener('pointerup', () => leftHandActive = false);
+
+function showToast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+['click','touchstart'].forEach(ev => {
+  document.addEventListener(ev, ()=>{ ensureAudio(); if(ctx?.state==='suspended') ctx.resume(); }, {once:true, passive:true});
+});
+</script>
+</body>
+</html>
